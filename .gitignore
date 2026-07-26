@@ -1,0 +1,163 @@
+# =============================================================================
+#  SECRETOS Y CONFIGURACIÓN LOCAL
+# =============================================================================
+
+# --- Configuración local de la app -------------------------------------------
+application-local.properties
+application-local.yml
+application-local.yaml
+application-secrets.*
+application-*-local.*
+
+# --- Variables de entorno ----------------------------------------------------
+.env
+.env.*
+!.env.example
+
+# --- Certificados, llaves y credenciales -------------------------------------
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+credentials.json
+service-account*.json
+gcp-*.json
+
+# --- Plantillas ---------------------------------------------------------------
+# Estas NO tienen secretos, solo placeholders. Se recomienda commitearlas
+# para que el proyecto sea reproducible. Descomentar si preferís ocultarlas.
+application-local.properties.example
+escenario.md
+
+
+# =============================================================================
+#  CONTEXTO DE HERRAMIENTAS DE IA
+# =============================================================================
+CLAUDE.md
+.claude/
+.cursor/
+.aider*
+.continue/
+
+
+# =============================================================================
+#  BUILD
+# =============================================================================
+target/
+build/
+out/
+bin/
+*.class
+*.war
+*.ear
+*.nar
+
+# Crash dumps de la JVM
+hs_err_pid*
+replay_pid*
+
+# Cobertura
+*.exec
+.jacoco/
+
+
+# =============================================================================
+#  BASES DE DATOS Y VOLCADOS
+#  Un dump puede tener datos reales de usuarios. Nunca al repo.
+# =============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.mv.db
+*.trace.db
+*.sql.gz
+*.dump
+dump.sql
+backup*.sql
+mysql-data/
+/data/
+
+
+# =============================================================================
+#  ARCHIVOS SUBIDOS Y TEMPORALES
+#  Los audios de prueba pueden contener voz real. No se versionan.
+# =============================================================================
+uploads/
+tmp/
+temp/
+*.m4a
+*.mp3
+*.wav
+*.ogg
+*.aac
+
+
+# =============================================================================
+#  IDE
+# =============================================================================
+
+# --- IntelliJ IDEA -----------------------------------------------------------
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# --- VS Code -----------------------------------------------------------------
+.vscode/
+*.code-workspace
+
+# --- Eclipse / STS -----------------------------------------------------------
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated/
+.springBeans
+.sts4-cache
+
+# --- NetBeans ----------------------------------------------------------------
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+
+# =============================================================================
+#  SISTEMA OPERATIVO
+# =============================================================================
+
+# --- macOS -------------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# --- Windows -----------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Linux -------------------------------------------------------------------
+*~
+.directory
+.Trash-*
+
+
+# =============================================================================
+#  LOGS
+# =============================================================================
+*.log
+logs/
+spring.log
+
+
+# =============================================================================
+#  GENERADOS POR SPRING INITIALIZR
+# =============================================================================
+HELP.md

@@ -1,0 +1,30 @@
+services:
+
+  # ---------------------------------------------------------------------------
+  #  BASE DE DATOS
+  # ---------------------------------------------------------------------------
+  mysql:
+    image: mysql:${MYSQL_VERSION:-8.4}
+    container_name: ${COMPOSE_PROJECT_NAME:-pocket}-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-pocket}
+      MYSQL_USER: ${DB_USER:-pocket}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-pocket}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - pocket-mysql-data:/var/lib/mysql
+    healthcheck:
+
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  pocket-mysql-data:
+    name: ${COMPOSE_PROJECT_NAME:-pocket}-mysql-data

@@ -1,0 +1,152 @@
+# =============================================================================
+#  POCKET API — Configuración común a todos los entornos
+#  Los valores sensibles NO viven acá. Ver application-local.properties
+# =============================================================================
+
+spring:
+  application:
+    name: pocket-api
+
+  # ---------------------------------------------------------------------------
+  #  PERFIL ACTIVO
+  #  dev  → MySQL local vía docker-compose
+  #  prod → Railway, todo por variables de entorno
+  # ---------------------------------------------------------------------------
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # ---------------------------------------------------------------------------
+  #  SECRETOS LOCALES
+  #  Archivo en la raíz del proyecto, ignorado por git.
+  #  "optional:" hace que la app arranque igual si no existe (caso producción,
+  #  donde los secretos llegan por variables de entorno).
+  # ---------------------------------------------------------------------------
+  config:
+    import: optional:file:./application-local.properties
+
+  # ---------------------------------------------------------------------------
+  #  JPA / HIBERNATE
+  #  ddl-auto en "validate": el esquema lo maneja Flyway, Hibernate solo verifica
+  #  que las entidades coincidan. Nunca "update" en un proyecto serio.
+  # ---------------------------------------------------------------------------
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: America/Argentina/Buenos_Aires
+        format_sql: true
+
+  # ---------------------------------------------------------------------------
+  #  FLYWAY — migraciones versionadas del esquema
+  # ---------------------------------------------------------------------------
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+  # ---------------------------------------------------------------------------
+  #  CARGA DE ARCHIVOS — recepción del audio (RF-04)
+  #  Un audio de 60s en formato comprimido pesa bastante menos que 10MB,
+  #  pero dejamos margen para grabaciones largas con varios gastos.
+  # ---------------------------------------------------------------------------
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+# =============================================================================
+#  SERVIDOR
+# =============================================================================
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: always
+    include-binding-errors: always
+    include-stacktrace: never
+
+# =============================================================================
+#  ACTUATOR — health check para Railway
+# =============================================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+# =============================================================================
+#  REGLAS DE NEGOCIO
+#  Los umbrales del dominio viven acá, no hardcodeados en el código.
+#  Permite testear con otros valores sin tocar clases.
+# =============================================================================
+pocket:
+
+  # --- Detección de gasto hormiga (RN-01) ------------------------------------
+  hormiga:
+    # Cantidad de ocurrencias de una misma categoría en el mes calendario
+    # a partir de la cual se marca como gasto hormiga.
+    umbral-ocurrencias: 3
+    # Las cuotas de crédito nunca cuentan como hormiga (RN-02).
+    excluir-cuotas: true
+
+  # --- Promedio histórico (RN-05) --------------------------------------------
+  promedio:
+    # Meses completos de historia necesarios para empezar a comparar.
+    meses-minimos: 2
+    # Ventana de meses hacia atrás usada para calcular el promedio.
+    ventana-meses: 12
+
+  # --- Cuotas de crédito (RN-03, RN-04) --------------------------------------
+  cuotas:
+    # Tope de cuotas admitidas en una compra financiada.
+    maximo: 60
+    # Meses de desplazamiento entre la compra y la primera cuota.
+    # 1 = la cuota 1 cae en el mes siguiente.
+    desfase-primera-cuota: 1
+
+  # --- Ciclo mensual (RN-07, RN-08) ------------------------------------------
+  periodo:
+    # Zona horaria usada para determinar el mes en curso.
+    zona-horaria: America/Argentina/Buenos_Aires
+
+  # --- Moneda (RN-07) --------------------------------------------------------
+  moneda:
+    codigo-base: ARS
+    # Cada cuánto se refresca la cotización del blue, en minutos.
+    refresco-cotizacion-minutos: 30
+
+  # --- Seguridad (RF-02) -----------------------------------------------------
+  security:
+    jwt:
+      # El secreto NO va acá. Ver application-local.properties / env var.
+      expiracion-dias: 365
+      emisor: pocket-api
+
+  # --- Integración con la IA (RF-05) -----------------------------------------
+  ia:
+    proveedor: gemini
+    modelo: gemini-2.0-flash
+    url-base: https://generativelanguage.googleapis.com/v1beta
+    timeout-segundos: 30
+    # La API key NO va acá. Ver application-local.properties / env var.
+
+  # --- Integración con cotización del dólar (RF-38, RF-40) -------------------
+  cotizacion:
+    url: https://dolarapi.com/v1/dolares/blue
+    timeout-segundos: 10
+
+# =============================================================================
+#  LOGGING
+# =============================================================================
+logging:
+  level:
+    root: INFO
+    com.pocket: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss} %-5level %logger{36} - %msg%n"

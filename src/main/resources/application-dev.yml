@@ -1,0 +1,32 @@
+# =============================================================================
+#  PERFIL DEV — desarrollo local con MySQL en Docker
+#  Levantar la base con:  docker compose up -d
+# =============================================================================
+
+spring:
+
+  # ---------------------------------------------------------------------------
+  #  BASE DE DATOS LOCAL
+  #  Credenciales por defecto pensadas para el docker-compose del repo.
+  #  Se pueden pisar desde application-local.properties.
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: jdbc:mysql://localhost:3306/pocket?useSSL=false&serverTimezone=America/Argentina/Buenos_Aires&allowPublicKeyRetrieval=true
+    username: ${DB_USER:pocket}
+    password: ${DB_PASSWORD:pocket}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # ---------------------------------------------------------------------------
+  #  JPA — en dev sí queremos ver el SQL que se ejecuta
+  # ---------------------------------------------------------------------------
+  jpa:
+    show-sql: true
+
+# =============================================================================
+#  LOGGING — más verboso en desarrollo
+# =============================================================================
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.jdbc.bind: TRACE
+    org.springframework.web: DEBUG

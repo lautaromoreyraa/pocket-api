@@ -1,0 +1,44 @@
+# =============================================================================
+#  PERFIL PROD — Railway
+#  Todo llega por variables de entorno. Ningún valor sensible en el repo.
+# =============================================================================
+
+spring:
+
+  # ---------------------------------------------------------------------------
+  #  BASE DE DATOS
+  #  Railway inyecta estas variables al vincular el servicio de MySQL.
+  # ---------------------------------------------------------------------------
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 20000
+
+  # ---------------------------------------------------------------------------
+  #  JPA — nunca mostrar SQL en producción
+  # ---------------------------------------------------------------------------
+  jpa:
+    show-sql: false
+
+# =============================================================================
+#  SECRETOS E INTEGRACIONES
+#  Cargados desde el panel de variables de Railway.
+# =============================================================================
+pocket:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+  ia:
+    api-key: ${GEMINI_API_KEY}
+
+# =============================================================================
+#  LOGGING — solo lo necesario
+# =============================================================================
+logging:
+  level:
+    root: WARN
+    com.pocket: INFO
