@@ -1,5 +1,6 @@
 package com.pocket.controller;
 
+import com.pocket.dto.compra.CompraEdicionRequest;
 import com.pocket.dto.compra.CompraFinanciadaRequest;
 import com.pocket.dto.compra.CompraFinanciadaResponse;
 import com.pocket.dto.resumen.CuotaEnCursoResponse;
@@ -32,6 +33,12 @@ public class CompraFinanciadaController {
     public ResponseEntity<List<CuotaEnCursoResponse>> enCurso(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo) {
         return ResponseEntity.ok(compraService.cuotasEnCurso(periodo));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<CompraFinanciadaResponse> editar(
+            @PathVariable UUID id, @Valid @RequestBody CompraEdicionRequest request) {
+        return ResponseEntity.ok(compraService.editar(id, request));
     }
 
     @DeleteMapping("/{id}")

@@ -29,6 +29,13 @@ public class CompraFinanciada {
     @JoinColumn(name = "usuario_id", nullable = false)
     private Usuario usuario;
 
+    /**
+     * Clave generada por el cliente para evitar duplicar la compra cuando se
+     * reintenta el envío de un borrador offline (RF-41, RF-42).
+     */
+    @Column(name = "idempotency_key", nullable = false, unique = true, columnDefinition = "BINARY(16)")
+    private UUID idempotencyKey;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
