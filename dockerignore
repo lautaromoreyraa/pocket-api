@@ -1,0 +1,41 @@
+# =============================================================================
+#  Archivos que NO se copian al contexto de build.
+#  Reduce el tamaño del contexto y evita filtrar secretos a la imagen.
+# =============================================================================
+
+# --- Secretos ----------------------------------------------------------------
+.env
+.env.*
+!.env.example
+application-local.properties
+*.pem
+*.key
+*.jks
+
+# --- Build local -------------------------------------------------------------
+target/
+.mvn/
+mvnw
+mvnw.cmd
+
+# --- Control de versiones ----------------------------------------------------
+.git/
+.gitignore
+
+# --- Documentación y contexto ------------------------------------------------
+docs/
+README.md
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# --- IDE y sistema -----------------------------------------------------------
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# --- Docker ------------------------------------------------------------------
+Dockerfile
+.dockerignore
+docker-compose.yml

@@ -25,6 +25,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(422, "Audio no comprendido", e.getMessage()));
     }
 
+    @ExceptionHandler(NoAutenticadoException.class)
+    public ResponseEntity<ErrorResponse> noAutenticado(NoAutenticadoException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.de(401, "No autenticado", e.getMessage()));
+    }
+
     @ExceptionHandler(CuotasInvalidasException.class)
     public ResponseEntity<ErrorResponse> cuotasInvalidas(CuotasInvalidasException e) {
         return ResponseEntity.badRequest()
