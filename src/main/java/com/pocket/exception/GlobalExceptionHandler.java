@@ -31,6 +31,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(401, "No autenticado", e.getMessage()));
     }
 
+    @ExceptionHandler(OperacionNoPermitidaException.class)
+    public ResponseEntity<ErrorResponse> operacionNoPermitida(OperacionNoPermitidaException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.de(409, "Operación no permitida", e.getMessage()));
+    }
+
     @ExceptionHandler(CuotasInvalidasException.class)
     public ResponseEntity<ErrorResponse> cuotasInvalidas(CuotasInvalidasException e) {
         return ResponseEntity.badRequest()
