@@ -1,11 +1,15 @@
 package com.pocket.service.ingreso.impl;
 
+import com.pocket.domain.Ingreso;
+import com.pocket.domain.Usuario;
 import com.pocket.dto.ingreso.IngresoRequest;
 import com.pocket.dto.ingreso.IngresoResponse;
+import com.pocket.exception.IngresoNoEncontradoException;
 import com.pocket.mapper.ingreso.IngresoMapper;
 import com.pocket.repository.IngresoRepository;
 import com.pocket.service.auth.AuthService;
 import com.pocket.service.ingreso.IngresoService;
+import com.pocket.util.PeriodoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,18 +29,37 @@ public class IngresoServiceImpl implements IngresoService {
     @Override
     @Transactional
     public IngresoResponse registrar(IngresoRequest request) {
-        // TODO: normalizar el período al día 1 con PeriodoUtil.normalizarPeriodo
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        Usuario usuario = authService.actual();
+
+        Ingreso ingreso = Ingreso.builder()
+                .usuario(usuario)
+                .monto(request.monto())
+                .descripcion(request.descripcion())
+                // El ingreso se carga al mes, no a un día: se normaliza al día 1.
+                .periodo(PeriodoUtil.normalizarPeriodo(request.periodo()))
+                .build();
+
+        return ingresoMapper.aResponse(ingresoRepository.save(ingreso));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<IngresoResponse> listarDelPeriodo(YearMonth periodo) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        Usuario usuario = authService.actual();
+        List<Ingreso> ingresos = ingresoRepository.findByUsuarioIdAndPeriodo(
+                usuario.getId(), PeriodoUtil.primerDia(periodo));
+        return ingresoMapper.aResponse(ingresos);
     }
 
     @Override
     @Transactional
     public void eliminar(UUID id) {
-        throw new UnsupportedOperationException("Pendiente de implementar");
+        Ingreso ingreso = ingresoRepository.findById(id)
+                .orElseThrow(() -> new IngresoNoEncontradoException(id));
+        // Ingreso ajeno = inexistente: un 403 confirmaría que ese id existe.
+        if (!ingreso.getUsuario().getId().equals(authService.actual().getId())) {
+            throw new IngresoNoEncontradoException(id);
+        }
+        ingresoRepository.delete(ingreso);
     }
 }
