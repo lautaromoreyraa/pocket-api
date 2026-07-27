@@ -12,6 +12,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
+@Transactional
 class GastoControllerTest {
 
     @Autowired private MockMvc mockMvc;
@@ -34,8 +36,7 @@ class GastoControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        gastoRepository.deleteAll();
-        categoriaRepository.deleteAll();
+        // @Transactional revierte cada test, así que solo hace falta sembrar lo propio.
         categoriaId = categoriaRepository.save(Categoria.builder()
                 .nombre("Supermercado").icono("cart").color("#000000").orden(1).build()).getId();
         token = obtenerToken("device-" + UUID.randomUUID());
