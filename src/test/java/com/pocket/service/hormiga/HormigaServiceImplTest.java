@@ -99,10 +99,56 @@ class HormigaServiceImplTest {
     }
 
     @Test
-    @DisplayName("detectar(): la variación contra el promedio todavía viaja en null")
-    void variacionEnNullPorAhora() {
+    @DisplayName("detectar(): sin ningún historial (primerPeriodoConGastos null), la variación queda en null")
+    void sinHistorialVariacionEnNull() {
         when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), anyBoolean()))
                 .thenReturn(fila("Delivery", 3, "15000.00"));
+
+        List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
+
+        assertThat(hormigas.get(0).variacionVsPromedio()).isNull();
+    }
+
+    @Test
+    @DisplayName("detectar(): con solo 2 meses previos de historia (por debajo del umbral), la variación queda en null")
+    void historiaInsuficienteVariacionEnNull() {
+        when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), anyBoolean()))
+                .thenReturn(fila("Delivery", 3, "15000.00"));
+        // Enero 2026 -> solo 2 meses previos a marzo 2026 (mesesMinimos = 2, hace falta más).
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2026, 1, 1));
+
+        List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
+
+        assertThat(hormigas.get(0).variacionVsPromedio()).isNull();
+    }
+
+    @Test
+    @DisplayName("detectar(): calcula la variación porcentual contra el promedio de la ventana de la categoría")
+    void calculaVariacionPorcentual() {
+        when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), eq(false)))
+                .thenReturn(fila("Delivery", 3, "15000.00"));
+        // Diciembre 2025 -> 3 meses previos a marzo 2026: ya alcanza (mesesMinimos = 2).
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.agruparPorCategoria(
+                eq(usuarioId), eq(LocalDate.of(2025, 12, 1)), eq(LocalDate.of(2026, 2, 28)), eq(false), eq(false)))
+                .thenReturn(fila("Delivery", 6, "9000.00"));
+
+        List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
+
+        // Promedio de la ventana: 9000 / 3 meses = 3000. Variación: (15000-3000)/3000*100 = 400%.
+        assertThat(hormigas.get(0).variacionVsPromedio()).isEqualByComparingTo("400.00");
+    }
+
+    @Test
+    @DisplayName("detectar(): si la categoría nunca tuvo gastos en la ventana, la variación queda en null")
+    void categoriaSinHistoriaPropiaVariacionEnNull() {
+        when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), eq(false)))
+                .thenReturn(fila("Delivery", 3, "15000.00"));
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        // La ventana no trae ninguna fila para "Delivery": nunca se gastó antes en esa categoría.
+        when(gastoRepository.agruparPorCategoria(
+                eq(usuarioId), eq(LocalDate.of(2025, 12, 1)), eq(LocalDate.of(2026, 2, 28)), eq(false), eq(false)))
+                .thenReturn(List.of());
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 

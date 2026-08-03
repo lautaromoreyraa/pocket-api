@@ -57,4 +57,22 @@ public final class PeriodoUtil {
     public static LocalDate normalizarPeriodo(LocalDate fecha) {
         return fecha.withDayOfMonth(1);
     }
+
+    /**
+     * Meses previos al período, acotados a la vez por la ventana configurada
+     * (RN-05) y por cuándo arrancó la historia real de datos. Vacía si nunca
+     * hubo gastos.
+     *
+     * Nota deliberada: si hubo un hueco de uso (ej. gastos en enero, nada en
+     * todo el año, volvió en diciembre), esta ventana igual divide por los 12
+     * meses completos aunque 11 estén vacíos — el promedio queda bajo. Es
+     * aceptable para el MVP: acotar por huecos internos (no solo por el
+     * primer período) queda para una iteración futura si hace falta.
+     */
+    public static List<YearMonth> ventanaPromedio(YearMonth periodo, YearMonth primerPeriodoConGastos, int ventanaMeses) {
+        if (primerPeriodoConGastos == null) return List.of();
+        long disponibles = mesesEntre(primerPeriodoConGastos, periodo);
+        int cantidad = (int) Math.min(ventanaMeses, disponibles);
+        return cantidad <= 0 ? List.of() : mesesPrevios(periodo, cantidad);
+    }
 }

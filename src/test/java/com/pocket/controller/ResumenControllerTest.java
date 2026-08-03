@@ -225,4 +225,48 @@ class ResumenControllerTest {
 
         assertThat(total).isEqualByComparingTo(BigDecimal.ZERO);
     }
+
+    @Test
+    @DisplayName("Con 1 mes de historia (solo el actual), el promedio no está disponible (RN-05)")
+    void unMesDeHistoriaPromedioNoDisponible() throws Exception {
+        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2026-03-05");
+
+        JsonNode resumen = resumen("2026-03", false);
+
+        assertThat(resumen.get("balance").get("promedioDisponible").asBoolean()).isFalse();
+        assertThat(resumen.get("balance").get("promedioHistorico").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Con 4 meses de historia, el promedio es el de los 3 anteriores y los meses vacíos no lo distorsionan")
+    void promedioDeLosTresMesesAnterioresSinContarElActual() throws Exception {
+        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2025-12-10"); // diciembre: 1000
+        crearGasto(deliveryId, "2000.00", "EFECTIVO", "2026-01-15"); // enero: 2000
+        // febrero queda sin gastos: un mes vacío dentro de la ventana.
+        crearGasto(deliveryId, "9999.00", "EFECTIVO", "2026-03-05"); // marzo (actual): no entra en el promedio
+
+        JsonNode resumen = resumen("2026-03", false);
+
+        assertThat(resumen.get("balance").get("promedioDisponible").asBoolean()).isTrue();
+        // (1000 + 2000 + 0) / 3 meses = 1000.00: febrero cuenta como $0, no se descarta del divisor.
+        assertThat(resumen.get("balance").get("promedioHistorico").decimalValue())
+                .isEqualByComparingTo("1000.00");
+        // El gasto actual (9999) supera holgadamente el promedio (1000).
+        assertThat(resumen.get("balance").get("superaPromedio").asBoolean()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Un mes que gasta menos que el promedio no marca superaPromedio")
+    void gastoPorDebajoDelPromedioNoSuperaPromedio() throws Exception {
+        crearGasto(deliveryId, "3000.00", "EFECTIVO", "2025-12-10");
+        crearGasto(deliveryId, "3000.00", "EFECTIVO", "2026-01-15");
+        crearGasto(deliveryId, "3000.00", "EFECTIVO", "2026-02-15");
+        crearGasto(deliveryId, "100.00", "EFECTIVO", "2026-03-05");
+
+        JsonNode resumen = resumen("2026-03", false);
+
+        assertThat(resumen.get("balance").get("promedioHistorico").decimalValue())
+                .isEqualByComparingTo("3000.00");
+        assertThat(resumen.get("balance").get("superaPromedio").asBoolean()).isFalse();
+    }
 }
