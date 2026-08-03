@@ -164,11 +164,100 @@ class ResumenServiceImplTest {
     }
 
     @Test
-    @DisplayName("El promedio histórico todavía no está disponible")
-    void promedioTodaviaNoDisponible() {
+    @DisplayName("Sin historial de gastos, el promedio no está disponible")
+    void sinHistorialPromedioNoDisponible() {
         ResumenResponse resp = service.armar(periodo, false);
 
         assertThat(resp.balance().promedioDisponible()).isFalse();
         assertThat(resp.balance().promedioHistorico()).isNull();
+    }
+
+    @Test
+    @DisplayName("Con 2 meses previos de historia, el promedio no está disponible (RN-05: hace falta más de 2)")
+    void promedioNoDisponibleConDosMesesPrevios() {
+        // Enero 2026 -> solo 2 meses previos a marzo 2026.
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2026, 1, 1));
+
+        ResumenResponse resp = service.armar(periodo, false);
+
+        assertThat(resp.balance().promedioDisponible()).isFalse();
+        assertThat(resp.balance().promedioHistorico()).isNull();
+    }
+
+    @Test
+    @DisplayName("Con 3 meses previos de historia, el promedio ya está disponible")
+    void promedioDisponibleConTresMesesPrevios() {
+        // Diciembre 2025 -> 3 meses previos a marzo 2026.
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), false))
+                .thenReturn(new BigDecimal("30000.00"));
+
+        ResumenResponse resp = service.armar(periodo, false);
+
+        assertThat(resp.balance().promedioDisponible()).isTrue();
+        assertThat(resp.balance().promedioHistorico()).isEqualByComparingTo("10000.00");
+    }
+
+    @Test
+    @DisplayName("El promedio se calcula sobre los 3 meses anteriores, sin contar el mes actual")
+    void promedioNoIncluyeElMesActual() {
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), false))
+                .thenReturn(new BigDecimal("30000.00"));
+        // El total del mes actual (marzo) es enorme pero no debe influir en la ventana Dic-Feb.
+        when(gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, false)).thenReturn(new BigDecimal("999999.00"));
+
+        ResumenResponse resp = service.armar(periodo, false);
+
+        assertThat(resp.total()).isEqualByComparingTo("999999.00");
+        assertThat(resp.balance().promedioHistorico()).isEqualByComparingTo("10000.00");
+    }
+
+    @Test
+    @DisplayName("superaPromedio es true cuando el total del período supera el promedio histórico")
+    void superaPromedioTrue() {
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), false))
+                .thenReturn(new BigDecimal("30000.00")); // promedio 10000
+        when(gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, false)).thenReturn(new BigDecimal("15000.00"));
+
+        ResumenResponse resp = service.armar(periodo, false);
+
+        assertThat(resp.balance().superaPromedio()).isTrue();
+    }
+
+    @Test
+    @DisplayName("superaPromedio es false cuando el total del período no supera el promedio histórico")
+    void superaPromedioFalse() {
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), false))
+                .thenReturn(new BigDecimal("30000.00")); // promedio 10000
+        when(gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, false)).thenReturn(new BigDecimal("5000.00"));
+
+        ResumenResponse resp = service.armar(periodo, false);
+
+        assertThat(resp.balance().superaPromedio()).isFalse();
+    }
+
+    @Test
+    @DisplayName("El promedio es por pestaña: débito y crédito comparan cada uno contra el total de su propia pestaña")
+    void promedioEsPorPestaña() {
+        when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), false))
+                .thenReturn(new BigDecimal("30000.00"));
+        when(gastoRepository.totalDelPeriodo(
+                usuarioId, LocalDate.of(2025, 12, 1), LocalDate.of(2026, 2, 28), true))
+                .thenReturn(new BigDecimal("9000.00"));
+
+        ResumenResponse debito = service.armar(periodo, false);
+        ResumenResponse credito = service.armar(periodo, true);
+
+        assertThat(debito.balance().promedioHistorico()).isEqualByComparingTo("10000.00");
+        assertThat(credito.balance().promedioHistorico()).isEqualByComparingTo("3000.00");
     }
 }

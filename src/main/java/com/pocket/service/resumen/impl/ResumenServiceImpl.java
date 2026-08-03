@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
@@ -54,13 +55,14 @@ public class ResumenServiceImpl implements ResumenService {
         List<CuotaEnCursoResponse> cuotasEnCurso =
                 credito ? compraService.cuotasEnCurso(periodo) : List.of();
 
-        BalanceResponse balance = armarBalance(usuarioId, desde, hasta);
+        BalanceResponse balance = armarBalance(usuarioId, periodo, credito, desde, hasta, total);
 
         return new ResumenResponse(periodo, credito, total, porCategoria, hormigas, cuotasEnCurso, balance);
     }
 
-    // Capacidad de ahorro global (RN-06): se muestra igual en débito y en crédito.
-    private BalanceResponse armarBalance(UUID usuarioId, LocalDate desde, LocalDate hasta) {
+    private BalanceResponse armarBalance(UUID usuarioId, YearMonth periodo, boolean credito,
+                                          LocalDate desde, LocalDate hasta, BigDecimal total) {
+        // Capacidad de ahorro global (RN-06): se muestra igual en débito y en crédito.
         BigDecimal ingresos = ingresoRepository.totalDelPeriodo(usuarioId, desde);
         BigDecimal gastosDebito = gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, false);
         BigDecimal gastosCredito = gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, true);
@@ -69,10 +71,30 @@ public class ResumenServiceImpl implements ResumenService {
         boolean tieneIngresos = ingresoRepository.existsByUsuarioIdAndPeriodo(usuarioId, desde);
         BigDecimal capacidadAhorro = ingresos.subtract(gastosDebito).subtract(gastosCredito);
 
-        // Promedio histórico pendiente de implementar.
+        // El promedio histórico, a diferencia del ahorro, es por pestaña: se
+        // compara contra el total de esa misma pestaña (RF-30), no es global.
+        LocalDate primerFecha = gastoRepository.primerPeriodoConGastos(usuarioId);
+        YearMonth primerPeriodo = primerFecha == null ? null : YearMonth.from(primerFecha);
+        long historiaPrevia = primerPeriodo == null ? 0 : PeriodoUtil.mesesEntre(primerPeriodo, periodo);
+        boolean promedioDisponible = historiaPrevia > props.getPromedio().getMesesMinimos();
+
+        BigDecimal promedioHistorico = null;
+        boolean superaPromedio = false;
+        if (promedioDisponible) {
+            List<YearMonth> ventana = PeriodoUtil.ventanaPromedio(
+                    periodo, primerPeriodo, props.getPromedio().getVentanaMeses());
+            LocalDate ventanaDesde = PeriodoUtil.primerDia(ventana.get(0));
+            LocalDate ventanaHasta = PeriodoUtil.ultimoDia(ventana.get(ventana.size() - 1));
+            // Una sola query de rango en vez de una por mes: los meses sin gastos
+            // dentro de la ventana suman $0 pero igual cuentan en el divisor.
+            BigDecimal sumaVentana = gastoRepository.totalDelPeriodo(usuarioId, ventanaDesde, ventanaHasta, credito);
+            promedioHistorico = sumaVentana.divide(BigDecimal.valueOf(ventana.size()), 2, RoundingMode.HALF_UP);
+            superaPromedio = total.compareTo(promedioHistorico) > 0;
+        }
+
         return new BalanceResponse(
                 ingresos, gastosDebito, gastosCredito, capacidadAhorro, tieneIngresos,
-                null, false, false);
+                promedioHistorico, promedioDisponible, superaPromedio);
     }
 
     private CategoriaResumenResponse aCategoriaResumen(Object[] fila) {
