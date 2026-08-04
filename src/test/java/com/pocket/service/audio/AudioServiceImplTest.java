@@ -53,22 +53,50 @@ class AudioServiceImplTest {
     }
 
     @Test
-    @DisplayName("Un archivo que no es de tipo audio lanza ArchivoInvalidoException")
+    @DisplayName("Un archivo claramente no-audio (texto, extensión .txt) lanza ArchivoInvalidoException")
     void tipoNoAudioLanzaExcepcion() {
-        MockMultipartFile pdf = new MockMultipartFile("audio", "doc.pdf", "application/pdf", "x".getBytes());
+        MockMultipartFile texto = new MockMultipartFile("audio", "notas.txt", "text/plain", "x".getBytes());
 
-        assertThatThrownBy(() -> service.procesar(pdf))
+        assertThatThrownBy(() -> service.procesar(texto))
                 .isInstanceOf(ArchivoInvalidoException.class);
         verify(procesadorIA, never()).extraerGastos(any(), any());
     }
 
     @Test
-    @DisplayName("Un content type nulo lanza ArchivoInvalidoException")
-    void contentTypeNuloLanzaExcepcion() {
-        MockMultipartFile sinTipo = new MockMultipartFile("audio", "audio", null, "x".getBytes());
+    @DisplayName("Content type nulo y sin extensión reconocible lanza ArchivoInvalidoException")
+    void sinContentTypeNiExtensionLanzaExcepcion() {
+        MockMultipartFile sinTipo = new MockMultipartFile("audio", "archivo", null, "x".getBytes());
 
         assertThatThrownBy(() -> service.procesar(sinTipo))
                 .isInstanceOf(ArchivoInvalidoException.class);
+    }
+
+    @Test
+    @DisplayName("application/octet-stream con extensión .m4a se acepta (así lo mandan curl y Expo)")
+    void octetStreamConExtensionM4aSeAcepta() {
+        MockMultipartFile audio =
+                new MockMultipartFile("audio", "grabacion.m4a", "application/octet-stream", "x".getBytes());
+        when(authService.actual()).thenReturn(usuario);
+        GastoDetectado detectado = new GastoDetectado(
+                UUID.randomUUID(), new BigDecimal("1000"), 1, "x", MedioPago.EFECTIVO, LocalDate.now(), null);
+        AudioResponse respuestaEsperada = new AudioResponse(List.of(detectado), "transcripción");
+        when(procesadorIA.extraerGastos(audio, usuario)).thenReturn(respuestaEsperada);
+
+        AudioResponse resp = service.procesar(audio);
+
+        assertThat(resp).isSameAs(respuestaEsperada);
+    }
+
+    @Test
+    @DisplayName("video/mp4 (contenedor que a veces trae audio-only) se acepta")
+    void videoMp4SeAcepta() {
+        MockMultipartFile audio = new MockMultipartFile("audio", "audio.mp4", "video/mp4", "x".getBytes());
+        when(authService.actual()).thenReturn(usuario);
+        GastoDetectado detectado = new GastoDetectado(
+                UUID.randomUUID(), new BigDecimal("1000"), 1, "x", MedioPago.EFECTIVO, LocalDate.now(), null);
+        when(procesadorIA.extraerGastos(audio, usuario)).thenReturn(new AudioResponse(List.of(detectado), "x"));
+
+        assertThat(service.procesar(audio)).isNotNull();
     }
 
     @Test
