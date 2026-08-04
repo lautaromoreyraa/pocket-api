@@ -49,6 +49,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(503, "Cotización no disponible", e.getMessage()));
     }
 
+    @ExceptionHandler(ArchivoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> archivoInvalido(ArchivoInvalidoException e) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.de(400, "Archivo inválido", e.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> validacion(MethodArgumentNotValidException e) {
         Map<String, String> detalles = new HashMap<>();
