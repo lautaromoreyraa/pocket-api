@@ -43,6 +43,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(400, "Cuotas inválidas", e.getMessage()));
     }
 
+    @ExceptionHandler(CotizacionNoDisponibleException.class)
+    public ResponseEntity<ErrorResponse> cotizacionNoDisponible(CotizacionNoDisponibleException e) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.de(503, "Cotización no disponible", e.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> validacion(MethodArgumentNotValidException e) {
         Map<String, String> detalles = new HashMap<>();
