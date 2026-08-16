@@ -31,6 +31,7 @@ public class SecurityConfig {
                         // Identificación por dispositivo: es el único endpoint abierto (RF-01).
                         .requestMatchers(HttpMethod.POST, "/api/auth/dispositivo").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 // Sin token válido devolvemos 401, no el 403 que tira el entry point por defecto.
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedEntryPoint()))
