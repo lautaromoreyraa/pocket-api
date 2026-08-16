@@ -22,6 +22,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +43,8 @@ class GeminiProcesadorServiceImplTest {
     private RestClient.ResponseSpec responseSpec;
     private CategoriaRepository categoriaRepository;
     private GeminiProcesadorServiceImpl service;
+    /** Campo, no local: los tests de reintento ajustan el techo y el backoff. */
+    private PocketProperties props;
 
     private final Usuario usuario = Usuario.builder().id(UUID.randomUUID()).deviceUuid("dev").build();
 
@@ -76,7 +79,7 @@ class GeminiProcesadorServiceImplTest {
                 categoria(otrosId, Categoria.OTROS));
         when(categoriaRepository.findAllByOrderByOrdenAsc()).thenReturn(categorias);
 
-        PocketProperties props = new PocketProperties();
+        props = new PocketProperties();
         props.getIa().setModelo("gemini-3.6-flash");
         props.getIa().setApiKey("test-key");
         props.getIa().setIntentos(3);
@@ -472,6 +475,102 @@ class GeminiProcesadorServiceImplTest {
                 .isInstanceOf(HttpServerErrorException.class);
 
         verify(responseSpec, times(1)).body(GeminiResponse.class);
+    }
+
+    // --- El retryDelay que manda el proveedor ----------------------------
+    //
+    // Gemini dice en el cuerpo del 429 cuánto hay que esperar. Ignorarlo y
+    // reintentar al segundo es garantizarse otro 429: los 3 intentos se
+    // queman sin chance y el usuario espera de más para el mismo error.
+
+    /** Un 429 con el RetryInfo que Gemini manda de verdad. */
+    private HttpClientErrorException rateLimit(String retryDelay) {
+        String cuerpo = """
+                {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
+                  "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo",
+                               "retryDelay": "%s"}]}}
+                """.formatted(retryDelay);
+        return HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS,
+                "rate limit", HttpHeaders.EMPTY, cuerpo.getBytes(StandardCharsets.UTF_8), null);
+    }
+
+    @Test
+    @DisplayName("Un retryDelay por debajo del techo se respeta y se reintenta")
+    void respetaElRetryDelayPedido() {
+        props.getIa().setEsperaMaximaMs(5_000);
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(rateLimit("0.4s"))
+                .thenReturn(respuestaOk());
+
+        long inicio = System.nanoTime();
+        AudioResponse resp = service.extraerGastos(audioValido(), usuario);
+        long transcurrido = (System.nanoTime() - inicio) / 1_000_000;
+
+        assertThat(resp.detectados()).hasSize(1);
+        // El backoff configurado es de 1ms: si esperó ~400ms fue por el retryDelay.
+        assertThat(transcurrido).isGreaterThanOrEqualTo(400);
+        verify(responseSpec, times(2)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Un retryDelay por encima del techo corta sin reintentar: no se hace esperar al usuario")
+    void noReintentaSiElRetryDelaySuperaElTecho() {
+        props.getIa().setEsperaMaximaMs(5_000);
+        when(responseSpec.body(GeminiResponse.class)).thenThrow(rateLimit("35s"));
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(HttpClientErrorException.class);
+
+        // Es el caso de la cuota diaria agotada: esperar 35s no la devuelve.
+        verify(responseSpec, times(1)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Sin retryDelay en el cuerpo se cae al backoff exponencial de siempre")
+    void sinRetryDelayUsaElBackoff() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS,
+                        "rate limit", HttpHeaders.EMPTY, new byte[0], null))
+                .thenReturn(respuestaOk());
+
+        service.extraerGastos(audioValido(), usuario);
+
+        verify(responseSpec, times(2)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("El header Retry-After también se respeta")
+    void respetaElHeaderRetryAfter() {
+        props.getIa().setEsperaMaximaMs(1_000);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.RETRY_AFTER, "60");
+
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS,
+                        "rate limit", headers, new byte[0], null));
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(HttpClientErrorException.class);
+
+        // 60s supera el techo de 1s: corta en el primer intento.
+        verify(responseSpec, times(1)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("El retryDelay manda por sobre el backoff, pero nunca acorta la espera")
+    void elRetryDelayNoAcortaElBackoff() {
+        props.getIa().setBackoffInicialMs(300);
+        props.getIa().setEsperaMaximaMs(5_000);
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(rateLimit("0.05s"))
+                .thenReturn(respuestaOk());
+
+        long inicio = System.nanoTime();
+        service.extraerGastos(audioValido(), usuario);
+        long transcurrido = (System.nanoTime() - inicio) / 1_000_000;
+
+        // Pidió 50ms pero el backoff era de 300: gana el mayor de los dos.
+        assertThat(transcurrido).isGreaterThanOrEqualTo(300);
     }
 
     @Test

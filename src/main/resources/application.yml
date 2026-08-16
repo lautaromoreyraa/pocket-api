@@ -102,6 +102,12 @@ pocket:
     # Ventana de meses hacia atrás usada para calcular el promedio.
     ventana-meses: 12
 
+  # --- Resumen mensual -------------------------------------------------------
+  resumen:
+    # Cuántos movimientos trae el resumen como preview. El listado completo del
+    # período es otra pantalla y la sirve GET /api/gastos.
+    movimientos-maximos: 3
+
   # --- Cuotas de crédito (RN-03, RN-04) --------------------------------------
   cuotas:
     # Tope de cuotas admitidas en una compra financiada.
@@ -156,6 +162,12 @@ pocket:
     # Se reintenta solo eso; un 404 de modelo inexistente no mejora esperando.
     intentos: 3
     backoff-inicial-ms: 1000
+    # Gemini dice en el cuerpo del 429 cuánto esperar ("retryDelay": "35s") y
+    # ese valor pisa al backoff: reintentar antes es pedir el mismo error. Pero
+    # si lo que pide supera este techo no se espera, se corta y se propaga: del
+    # otro lado hay alguien con el teléfono en la mano. Cuota diaria agotada
+    # pide decenas de segundos y ahí no hay nada que esperar.
+    espera-maxima-ms: 10000
     # La API key NO va acá. Ver application-local.properties / env var.
 
   # --- Integración con cotización del dólar (RF-38, RF-40) -------------------

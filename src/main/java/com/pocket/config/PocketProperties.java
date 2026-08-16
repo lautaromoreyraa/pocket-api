@@ -16,6 +16,7 @@ public class PocketProperties {
 
     private Hormiga hormiga = new Hormiga();
     private Promedio promedio = new Promedio();
+    private Resumen resumen = new Resumen();
     private Cuotas cuotas = new Cuotas();
     private Periodo periodo = new Periodo();
     private Moneda moneda = new Moneda();
@@ -35,6 +36,14 @@ public class PocketProperties {
     public static class Promedio {
         private int mesesMinimos = 2;
         private int ventanaMeses = 12;
+    }
+
+    /** Preview de movimientos del resumen. */
+    @Getter @Setter
+    public static class Resumen {
+        /** Cuántos movimientos devuelve el resumen. El listado completo es
+         *  otra pantalla, servida por GET /api/gastos. */
+        private int movimientosMaximos = 3;
     }
 
     /** Cuotas de crédito (RN-03, RN-04). */
@@ -90,6 +99,18 @@ public class PocketProperties {
 
         /** Espera antes del segundo intento; se duplica en cada uno siguiente. */
         private long backoffInicialMs = 1000;
+
+        /**
+         * Techo de la espera entre intentos.
+         *
+         * Gemini indica cuánto esperar en el cuerpo del 429 (`RetryInfo.retryDelay`)
+         * y ese valor manda por sobre el backoff exponencial: reintentar antes es
+         * garantizarse otro 429. Pero el pedido puede ser de minutos —cuando la
+         * cuota agotada es la diaria— y del otro lado hay un usuario con el
+         * teléfono en la mano esperando. Si lo que pide supera este techo, no se
+         * espera: se corta y se propaga el error.
+         */
+        private long esperaMaximaMs = 10_000;
     }
 
     /** Integración con la API del dólar blue (RF-38, RF-40). */

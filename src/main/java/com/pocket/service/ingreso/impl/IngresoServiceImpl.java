@@ -35,8 +35,8 @@ public class IngresoServiceImpl implements IngresoService {
                 .usuario(usuario)
                 .monto(request.monto())
                 .descripcion(request.descripcion())
-                // El ingreso se carga al mes, no a un día: se normaliza al día 1.
-                .periodo(PeriodoUtil.normalizarPeriodo(request.periodo()))
+                // El período llega como mes; en base se guarda como el día 1.
+                .periodo(PeriodoUtil.primerDia(request.periodo()))
                 .build();
 
         return ingresoMapper.aResponse(ingresoRepository.save(ingreso));

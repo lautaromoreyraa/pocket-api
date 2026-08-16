@@ -48,6 +48,15 @@ public class HormigaServiceImpl implements HormigaService {
                 .toList();
     }
 
+    @Override
+    public List<CategoriaResumenResponse> marcarHormigas(List<CategoriaResumenResponse> categorias) {
+        return categorias.stream()
+                .map(c -> new CategoriaResumenResponse(
+                        c.categoriaId(), c.categoriaNombre(), c.icono(), c.color(),
+                        c.total(), c.ocurrencias(), c.ocurrencias() >= umbral()))
+                .toList();
+    }
+
     /** Promedio histórico por categoría en la ventana configurada (RN-05), con el
      *  mismo incluirCuotas que la detección actual para que la comparación sea
      *  contra lo mismo que se está midiendo. Vacío si no hay historia suficiente. */
@@ -86,15 +95,6 @@ public class HormigaServiceImpl implements HormigaService {
                 .divide(promedioCategoria, 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100))
                 .setScale(2, RoundingMode.HALF_UP);
-    }
-
-    @Override
-    public List<CategoriaResumenResponse> marcarHormigas(List<CategoriaResumenResponse> categorias) {
-        return categorias.stream()
-                .map(c -> new CategoriaResumenResponse(
-                        c.categoriaId(), c.nombre(), c.icono(), c.color(),
-                        c.total(), c.ocurrencias(), c.ocurrencias() >= umbral()))
-                .toList();
     }
 
     @Override
