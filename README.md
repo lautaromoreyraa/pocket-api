@@ -27,9 +27,9 @@ El audio se descarta apenas se procesa: nunca se almacena.
 
 ## Stack
 
-**Backend** · Java 21 · Spring Boot 3.5 · MySQL 8.4 · Flyway · JWT · Gemini
-**Mobile** · React Native · TypeScript · Expo
-**Deploy** · Railway
+**Backend** · Java 21 · Spring Boot 3.5 · MySQL 8.4 · Flyway · JWT · Gemini <br>
+**Mobile** · React Native · TypeScript · Expo <br>
+**Deploy** · Railway <br>
 
 ---
 
