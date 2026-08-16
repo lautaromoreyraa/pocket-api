@@ -1,6 +1,7 @@
 package com.pocket.repository;
 
 import com.pocket.domain.Gasto;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -66,4 +67,49 @@ public interface GastoRepository extends JpaRepository<Gasto, UUID> {
         WHERE g.usuario.id = :usuarioId
         """)
     LocalDate primerPeriodoConGastos(@Param("usuarioId") UUID usuarioId);
+
+    /**
+     * Los primeros N del período, para el preview de movimientos del resumen.
+     * Mismo criterio y mismo orden que findDelPeriodo: si al tocar "Ver más"
+     * apareciera otro conjunto, el preview estaría mintiendo.
+     */
+    @Query("""
+        SELECT g FROM Gasto g
+        JOIN FETCH g.categoria
+        LEFT JOIN FETCH g.compraFinanciada
+        WHERE g.usuario.id = :usuarioId
+          AND g.fechaImputacion BETWEEN :desde AND :hasta
+          AND (:credito = true  AND g.medioPago = com.pocket.enumeration.MedioPago.CREDITO
+            OR :credito = false AND g.medioPago <> com.pocket.enumeration.MedioPago.CREDITO)
+        ORDER BY g.fechaGasto DESC, g.fechaAlta DESC
+        """)
+    List<Gasto> findUltimosDelPeriodo(@Param("usuarioId") UUID usuarioId,
+                                      @Param("desde") LocalDate desde,
+                                      @Param("hasta") LocalDate hasta,
+                                      @Param("credito") boolean credito,
+                                      Pageable limite);
+
+    /**
+     * Suma de las cuotas que se imputan al período: el "Ya comprometido" de la
+     * pestaña de crédito. Solo cuotas, o sea gastos con compra financiada
+     * detrás; un gasto de crédito sin cuotas no es un compromiso a futuro.
+     */
+    @Query("""
+        SELECT COALESCE(SUM(g.monto), 0) FROM Gasto g
+        WHERE g.usuario.id = :usuarioId
+          AND g.fechaImputacion BETWEEN :desde AND :hasta
+          AND g.compraFinanciada IS NOT NULL
+        """)
+    BigDecimal totalCuotasDelPeriodo(@Param("usuarioId") UUID usuarioId,
+                                     @Param("desde") LocalDate desde,
+                                     @Param("hasta") LocalDate hasta);
+
+    /** Meses con al menos un gasto, del más viejo al más nuevo. Alimenta el
+     *  selector de la pestaña Histórico. */
+    @Query("""
+        SELECT DISTINCT g.fechaImputacion FROM Gasto g
+        WHERE g.usuario.id = :usuarioId
+        ORDER BY g.fechaImputacion
+        """)
+    List<LocalDate> periodosConGastos(@Param("usuarioId") UUID usuarioId);
 }

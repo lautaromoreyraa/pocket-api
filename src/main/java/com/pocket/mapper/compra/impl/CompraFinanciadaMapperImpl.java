@@ -51,9 +51,11 @@ public class CompraFinanciadaMapperImpl implements CompraFinanciadaMapper {
         return new CuotaEnCursoResponse(
                 c.getId(),
                 c.getDescripcion(),
+                c.getCategoria().getNombre(),
+                c.getMontoTotal(),
+                cuotaDelPeriodo != null ? cuotaDelPeriodo.getMonto() : BigDecimal.ZERO,
                 cuotaDelPeriodo != null ? cuotaDelPeriodo.getNroCuota() : 0,
                 c.getCantidadCuotas(),
-                cuotaDelPeriodo != null ? cuotaDelPeriodo.getMonto() : BigDecimal.ZERO,
                 ultimo
         );
     }

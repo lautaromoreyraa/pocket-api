@@ -17,11 +17,13 @@ import com.pocket.service.ia.ProcesadorIAService;
 import com.pocket.util.MontosEnTranscripcion;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
@@ -38,12 +40,18 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
+
+    /** `"retryDelay": "35s"` dentro del RetryInfo que Gemini manda en el 429. */
+    private static final Pattern RETRY_DELAY =
+            Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+(?:\\.\\d+)?)s\"");
 
     private final RestClient iaRestClient;
     private final PocketProperties props;
@@ -188,7 +196,8 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
      */
     private GeminiResponse conReintentos(Supplier<GeminiResponse> llamada) {
         int intentos = Math.max(1, props.getIa().getIntentos());
-        long espera = props.getIa().getBackoffInicialMs();
+        long techo = props.getIa().getEsperaMaximaMs();
+        long backoff = props.getIa().getBackoffInicialMs();
 
         for (int intento = 1; ; intento++) {
             try {
@@ -197,12 +206,58 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
                 if (intento >= intentos || !esTransitorio(e)) {
                     throw e;
                 }
-                log.warn("Intento {}/{} falló ({}). Reintento en {}ms",
-                        intento, intentos, e.getMessage(), espera);
+
+                // Cuando el proveedor dice cuánto esperar, esperar menos es
+                // pedir el mismo error de nuevo: el backoff exponencial solo
+                // aplica si no hay indicación.
+                Long pedida = esperaPedida(e);
+                long espera = pedida == null ? backoff : Math.max(pedida, backoff);
+
+                if (espera > techo) {
+                    log.warn("Intento {}/{} falló y el proveedor pide esperar {}ms, más que el "
+                                    + "techo de {}ms. No se reintenta.",
+                            intento, intentos, espera, techo);
+                    throw e;
+                }
+
+                log.warn("Intento {}/{} falló ({}). Reintento en {}ms{}",
+                        intento, intentos, e.getMessage(), espera,
+                        pedida == null ? "" : " (pedido por el proveedor)");
                 dormir(espera);
-                espera *= 2;
+                backoff *= 2;
             }
         }
+    }
+
+    /**
+     * Cuánto pide esperar el proveedor, en milisegundos, o null si no lo dice.
+     *
+     * Gemini lo manda en el cuerpo del 429, dentro de `error.details[]`, en una
+     * entrada de tipo `RetryInfo` con un `retryDelay` como "35s" o "1.5s". El
+     * header `Retry-After` es el estándar y se mira primero, pero Gemini no
+     * siempre lo incluye.
+     */
+    private Long esperaPedida(RestClientException e) {
+        if (!(e instanceof HttpStatusCodeException http)) {
+            return null;
+        }
+
+        String retryAfter = http.getResponseHeaders() == null
+                ? null : http.getResponseHeaders().getFirst(HttpHeaders.RETRY_AFTER);
+        if (retryAfter != null) {
+            try {
+                return Long.parseLong(retryAfter.trim()) * 1000;
+            } catch (NumberFormatException ignorado) {
+                // Retry-After admite también una fecha HTTP. No vale la pena
+                // parsearla: el cuerpo de Gemini es la fuente principal.
+            }
+        }
+
+        Matcher m = RETRY_DELAY.matcher(http.getResponseBodyAsString());
+        if (!m.find()) {
+            return null;
+        }
+        return Math.round(Double.parseDouble(m.group(1)) * 1000);
     }
 
     /**

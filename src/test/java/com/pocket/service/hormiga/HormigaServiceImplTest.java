@@ -82,7 +82,7 @@ class HormigaServiceImplTest {
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
         assertThat(hormigas).hasSize(1);
-        assertThat(hormigas.get(0).categoria()).isEqualTo("Delivery");
+        assertThat(hormigas.get(0).categoriaNombre()).isEqualTo("Delivery");
         assertThat(hormigas.get(0).ocurrencias()).isEqualTo(3);
         assertThat(hormigas.get(0).total()).isEqualByComparingTo("15000.00");
     }
@@ -106,7 +106,7 @@ class HormigaServiceImplTest {
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
-        assertThat(hormigas.get(0).variacionVsPromedio()).isNull();
+        assertThat(hormigas.get(0).porcentajeSobrePromedio()).isNull();
     }
 
     @Test
@@ -119,7 +119,7 @@ class HormigaServiceImplTest {
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
-        assertThat(hormigas.get(0).variacionVsPromedio()).isNull();
+        assertThat(hormigas.get(0).porcentajeSobrePromedio()).isNull();
     }
 
     @Test
@@ -136,7 +136,7 @@ class HormigaServiceImplTest {
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
         // Promedio de la ventana: 9000 / 3 meses = 3000. Variación: (15000-3000)/3000*100 = 400%.
-        assertThat(hormigas.get(0).variacionVsPromedio()).isEqualByComparingTo("400.00");
+        assertThat(hormigas.get(0).porcentajeSobrePromedio()).isEqualByComparingTo("400.00");
     }
 
     @Test
@@ -152,7 +152,7 @@ class HormigaServiceImplTest {
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
-        assertThat(hormigas.get(0).variacionVsPromedio()).isNull();
+        assertThat(hormigas.get(0).porcentajeSobrePromedio()).isNull();
     }
 
     @Test
