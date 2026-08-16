@@ -75,7 +75,21 @@ public class PocketProperties {
         private String modelo;
         private String urlBase;
         private String apiKey;
-        private int timeoutSegundos = 30;
+
+        /** Cuánto esperar la respuesta del modelo. Generar el JSON es lo lento. */
+        private int timeoutSegundos = 90;
+
+        /**
+         * Establecer la conexión es rápido o no va a serlo nunca. Separado del
+         * timeout de lectura para no esperar 90s por un DNS que no resuelve.
+         */
+        private int conexionTimeoutSegundos = 10;
+
+        /** Intentos totales, no reintentos: en 1 queda desactivado. */
+        private int intentos = 3;
+
+        /** Espera antes del segundo intento; se duplica en cada uno siguiente. */
+        private long backoffInicialMs = 1000;
     }
 
     /** Integración con la API del dólar blue (RF-38, RF-40). */

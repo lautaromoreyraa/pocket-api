@@ -14,7 +14,12 @@ import com.pocket.service.ia.impl.GeminiProcesadorServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -25,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class GeminiProcesadorServiceImplTest {
@@ -70,8 +77,11 @@ class GeminiProcesadorServiceImplTest {
         when(categoriaRepository.findAllByOrderByOrdenAsc()).thenReturn(categorias);
 
         PocketProperties props = new PocketProperties();
-        props.getIa().setModelo("gemini-2.0-flash");
+        props.getIa().setModelo("gemini-3.6-flash");
         props.getIa().setApiKey("test-key");
+        props.getIa().setIntentos(3);
+        // Backoff casi nulo: acá se verifica la política de reintento, no la espera.
+        props.getIa().setBackoffInicialMs(1);
 
         service = new GeminiProcesadorServiceImpl(iaRestClient, props, categoriaRepository, new ObjectMapper());
     }
@@ -194,7 +204,7 @@ class GeminiProcesadorServiceImplTest {
     void detectaMedioPagoCredito() {
         gemeniResponde("""
                 {
-                  "transcripcion": "Compré con crédito en seis cuotas",
+                  "transcripcion": "Compré algo de 60 mil con crédito en seis cuotas",
                   "gastos": [
                     {"monto": 60000, "categoria": "Otros", "descripcion": "compra", "medioPago": "CREDITO", "cantidadCuotas": 6}
                   ]
@@ -230,7 +240,7 @@ class GeminiProcesadorServiceImplTest {
     void cantidadCuotasConValorCuandoSeMenciona() {
         GastoDetectado detectado = extraerUnico("""
                 {
-                  "transcripcion": "Compré una tele con crédito en seis cuotas",
+                  "transcripcion": "Compré una tele de 120 mil con crédito en seis cuotas",
                   "gastos": [
                     {"monto": 120000, "categoria": "Otros", "descripcion": "tele", "medioPago": "CREDITO", "cantidadCuotas": 6}
                   ]
@@ -248,11 +258,227 @@ class GeminiProcesadorServiceImplTest {
         return resp.detectados().get(0);
     }
 
+    // --- Coherencia entre montos y transcripción -------------------------
+    //
+    // Un modelo que no puede leer el audio no falla: devuelve un JSON válido
+    // con gastos inventados. El único indicio disponible es que esos montos no
+    // aparecen en la transcripción que él mismo produjo.
+
+    @Test
+    @DisplayName("Si los montos aparecen en la transcripción, la respuesta se devuelve normalmente")
+    void montosPresentesEnLaTranscripcionPasan() {
+        gemeniResponde("""
+                {
+                  "transcripcion": "Gasté 5.000 en facturas y 20.000 de nafta",
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Delivery/Restaurantes", "descripcion": "facturas", "medioPago": "EFECTIVO", "cantidadCuotas": null},
+                    {"monto": 20000, "categoria": "Combustible", "descripcion": "nafta", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        AudioResponse resp = service.extraerGastos(audioValido(), usuario);
+
+        assertThat(resp.detectados()).hasSize(2);
+    }
+
+    @Test
+    @DisplayName("Un monto que no aparece en la transcripción se toma como fabricado y lanza AudioNoComprendidoException")
+    void montoAusenteDeLaTranscripcionLanzaExcepcion() {
+        gemeniResponde("""
+                {
+                  "transcripcion": "Gasté 5.000 en facturas",
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Delivery/Restaurantes", "descripcion": "facturas", "medioPago": "EFECTIVO", "cantidadCuotas": null},
+                    {"monto": 150000, "categoria": "Combustible", "descripcion": "nafta", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(AudioNoComprendidoException.class);
+    }
+
+    @Test
+    @DisplayName("Un monto en letras, \"cinco mil\", matchea contra 5000")
+    void montoEnLetrasMatcheaContraElNumero() {
+        gemeniResponde("""
+                {
+                  "transcripcion": "Gasté cinco mil pesos en el kiosco",
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Otros", "descripcion": "kiosco", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        AudioResponse resp = service.extraerGastos(audioValido(), usuario);
+
+        assertThat(resp.detectados().get(0).monto()).isEqualByComparingTo("5000");
+    }
+
+    @Test
+    @DisplayName("Alcanza con que un solo monto no cierre para descartar la respuesta entera")
+    void unSoloMontoIncoherenteDescartaTodo() {
+        gemeniResponde("""
+                {
+                  "transcripcion": "Gasté cinco mil en facturas y veinte mil de nafta",
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Delivery/Restaurantes", "descripcion": "facturas", "medioPago": "EFECTIVO", "cantidadCuotas": null},
+                    {"monto": 20000, "categoria": "Combustible", "descripcion": "nafta", "medioPago": "EFECTIVO", "cantidadCuotas": null},
+                    {"monto": 99999, "categoria": "Otros", "descripcion": "inventado", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(AudioNoComprendidoException.class);
+    }
+
+    @Test
+    @DisplayName("Sin transcripción no hay con qué contrastar: se descarta la respuesta")
+    void sinTranscripcionSeDescarta() {
+        gemeniResponde("""
+                {
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Otros", "descripcion": "algo", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(AudioNoComprendidoException.class);
+    }
+
+    @Test
+    @DisplayName("El caso real que motivó el control: el modelo transcribe una cosa y reporta gastos de otra")
+    void gastosFabricadosConTranscripcionDistinta() {
+        // Reproduce lo que devolvió gemini-3.7-flash con un audio que en realidad
+        // decía "cinco lucas en facturas, veinte mil de nafta y ciento cincuenta
+        // mil en el súper": montos plausibles, sin ninguna relación con el audio.
+        gemeniResponde("""
+                {
+                  "transcripcion": "Anotame ahí 40 lucas de combustible y 18 lucas y media de la comida del perro",
+                  "gastos": [
+                    {"monto": 5000, "categoria": "Delivery/Restaurantes", "descripcion": "facturas", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+                  ]
+                }
+                """);
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(AudioNoComprendidoException.class);
+    }
+
+    // --- Reintentos ------------------------------------------------------
+    //
+    // Gemini devuelve 503 y 429 seguido. Un solo intento convierte eso en un
+    // error para el usuario, aunque el pedido siguiente hubiera funcionado.
+
+    private static final String RESPUESTA_OK = """
+            {
+              "transcripcion": "Gasté 5.000 en facturas",
+              "gastos": [
+                {"monto": 5000, "categoria": "Delivery/Restaurantes", "descripcion": "facturas", "medioPago": "EFECTIVO", "cantidadCuotas": null}
+              ]
+            }
+            """;
+
+    private GeminiResponse respuestaOk() {
+        GeminiResponse.Part part = new GeminiResponse.Part(RESPUESTA_OK);
+        GeminiResponse.Content content = new GeminiResponse.Content(List.of(part));
+        return new GeminiResponse(List.of(new GeminiResponse.Candidate(content)));
+    }
+
+    @Test
+    @DisplayName("Un 503 se reintenta y el segundo intento exitoso devuelve los gastos")
+    void reintentaAnteUn503() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE,
+                        "high demand", HttpHeaders.EMPTY, new byte[0], null))
+                .thenReturn(respuestaOk());
+
+        AudioResponse resp = service.extraerGastos(audioValido(), usuario);
+
+        assertThat(resp.detectados()).hasSize(1);
+        verify(responseSpec, times(2)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Un 429 también se reintenta")
+    void reintentaAnteUn429() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS,
+                        "rate limit", HttpHeaders.EMPTY, new byte[0], null))
+                .thenReturn(respuestaOk());
+
+        service.extraerGastos(audioValido(), usuario);
+
+        verify(responseSpec, times(2)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Un timeout de lectura se reintenta")
+    void reintentaAnteTimeout() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(new ResourceAccessException("Read timed out"))
+                .thenReturn(respuestaOk());
+
+        service.extraerGastos(audioValido(), usuario);
+
+        verify(responseSpec, times(2)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Un 404 de modelo inexistente NO se reintenta: esperar no lo arregla")
+    void noReintentaAnteUn404() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND,
+                        "model is no longer available", HttpHeaders.EMPTY, new byte[0], null));
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(HttpClientErrorException.class);
+
+        verify(responseSpec, times(1)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Agotados los intentos, se propaga la última excepción")
+    void agotaLosIntentosYPropaga() {
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE,
+                        "high demand", HttpHeaders.EMPTY, new byte[0], null));
+
+        assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(HttpServerErrorException.class);
+
+        // 3 intentos totales, según pocket.ia.intentos en el setUp
+        verify(responseSpec, times(3)).body(GeminiResponse.class);
+    }
+
+    @Test
+    @DisplayName("Con intentos en 1 el reintento queda desactivado")
+    void intentosEnUnoDesactivaElReintento() {
+        PocketProperties sinReintentos = new PocketProperties();
+        sinReintentos.getIa().setModelo("gemini-3.6-flash");
+        sinReintentos.getIa().setApiKey("test-key");
+        sinReintentos.getIa().setIntentos(1);
+        GeminiProcesadorServiceImpl servicio = new GeminiProcesadorServiceImpl(
+                iaRestClient, sinReintentos, categoriaRepository, new ObjectMapper());
+
+        when(responseSpec.body(GeminiResponse.class))
+                .thenThrow(HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE,
+                        "high demand", HttpHeaders.EMPTY, new byte[0], null));
+
+        assertThatThrownBy(() -> servicio.extraerGastos(audioValido(), usuario))
+                .isInstanceOf(HttpServerErrorException.class);
+
+        verify(responseSpec, times(1)).body(GeminiResponse.class);
+    }
+
     @Test
     @DisplayName("El audio se codifica en base64 y se manda inline junto al prompt, en una sola llamada")
     void codificaElAudioEnBase64YLoMandaInline() {
         gemeniResponde("""
-                {"transcripcion": "x", "gastos": [{"monto": 100, "categoria": "Otros", "descripcion": "x", "medioPago": "EFECTIVO", "cantidadCuotas": null}]}
+                {"transcripcion": "Gasté 100 en algo", "gastos": [{"monto": 100, "categoria": "Otros", "descripcion": "x", "medioPago": "EFECTIVO", "cantidadCuotas": null}]}
                 """);
 
         service.extraerGastos(audioValido(), usuario);

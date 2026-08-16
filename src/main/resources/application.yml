@@ -131,9 +131,31 @@ pocket:
   # --- Integración con la IA (RF-05) -----------------------------------------
   ia:
     proveedor: gemini
-    modelo: gemini-2.0-flash
+    # MODELO PINNEADO A PROPÓSITO. No usar un alias tipo "gemini-flash-latest".
+    #
+    # Un alias resuelve a lo que Google decida en cada momento, y no todos los
+    # modelos leen audio igual. Verificado con audios reales: hay modelos que
+    # reciben el audio (countTokens los cuenta como audio, ~32 tokens/segundo),
+    # responden que solo ven "datos binarios en bruto" y aun así devuelven un
+    # JSON válido con gastos fabricados: montos, categorías y medios de pago
+    # verosímiles que nunca se dijeron. No fallan: inventan.
+    #
+    # Por eso el modelo se pinnea y todo cambio se valida a mano con audios
+    # reales antes de mergear. GeminiProcesadorServiceImpl tiene además un
+    # control de coherencia que descarta la respuesta si algún monto no aparece
+    # en la transcripción, pero es una red de seguridad, no un reemplazo de la
+    # validación manual.
+    modelo: gemini-3.6-flash
     url-base: https://generativelanguage.googleapis.com/v1beta
-    timeout-segundos: 30
+    # Medido con audios reales: entre 9s y 30s para el mismo audio de 8s. La
+    # varianza la pone el proveedor, no nosotros, así que el timeout tiene que
+    # cubrir la cola de la distribución y no el caso promedio.
+    timeout-segundos: 90
+    conexion-timeout-segundos: 10
+    # Los 503 ("high demand") y 429 de Gemini son frecuentes y transitorios.
+    # Se reintenta solo eso; un 404 de modelo inexistente no mejora esperando.
+    intentos: 3
+    backoff-inicial-ms: 1000
     # La API key NO va acá. Ver application-local.properties / env var.
 
   # --- Integración con cotización del dólar (RF-38, RF-40) -------------------

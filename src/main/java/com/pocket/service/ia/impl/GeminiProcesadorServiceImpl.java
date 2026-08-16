@@ -14,11 +14,17 @@ import com.pocket.exception.AudioNoComprendidoException;
 import com.pocket.repository.CategoriaRepository;
 import com.pocket.service.ia.GeminiPrompt;
 import com.pocket.service.ia.ProcesadorIAService;
+import com.pocket.util.MontosEnTranscripcion;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -31,6 +37,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -69,9 +76,40 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
                     "No se detectó ningún gasto en el audio. Podés reintentar o cargarlo a mano.");
         }
 
+        verificarCoherencia(gastos, modelo.transcripcion());
+
         // El audio no se guarda en ningún momento (RNF-02): solo vivió en
         // memoria durante este método, como bytes y luego como base64.
         return new AudioResponse(gastos, modelo.transcripcion());
+    }
+
+    /**
+     * Todo monto detectado tiene que aparecer en la transcripción, en dígitos o
+     * en letras. Si no aparece, el modelo lo fabricó.
+     *
+     * No es paranoia: un modelo que no puede decodificar el audio igual devuelve
+     * un JSON bien formado, con montos y categorías verosímiles, en vez de
+     * fallar. Sin este control eso llega al usuario como un 200 indistinguible
+     * de una detección real.
+     *
+     * El criterio es deliberadamente estricto: alcanza con que un solo monto no
+     * cierre para descartar la respuesta entera. Un 422 de más solo cuesta un
+     * reintento o una carga manual; un gasto inventado con un monto plausible no
+     * hay forma de que el usuario lo detecte.
+     */
+    private void verificarCoherencia(List<GastoDetectado> gastos, String transcripcion) {
+        List<BigDecimal> fabricados = gastos.stream()
+                .map(GastoDetectado::monto)
+                .filter(monto -> !MontosEnTranscripcion.menciona(transcripcion, monto))
+                .toList();
+
+        if (!fabricados.isEmpty()) {
+            log.warn("Respuesta descartada por incoherente: los montos {} no aparecen en la "
+                            + "transcripción '{}'. Modelo: {}",
+                    fabricados, transcripcion, props.getIa().getModelo());
+            throw new AudioNoComprendidoException(
+                    "No se pudo verificar lo que dice el audio. Podés reintentar o cargarlo a mano.");
+        }
     }
 
     private GastoDetectado aGastoDetectado(GeminiRespuestaModelo.GastoModelo detectado,
@@ -133,12 +171,63 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
                 .buildAndExpand(props.getIa().getModelo())
                 .toUriString();
 
-        return iaRestClient.post()
+        return conReintentos(() -> iaRestClient.post()
                 .uri(uri)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
-                .body(GeminiResponse.class);
+                .body(GeminiResponse.class));
+    }
+
+    /**
+     * Reintenta con backoff exponencial mientras la falla sea transitoria.
+     *
+     * Gemini devuelve 503 ("high demand") y 429 seguido, y el tiempo de
+     * respuesta del mismo audio varía entre 9s y 30s: un solo intento convierte
+     * cualquiera de esas dos cosas en un error para el usuario.
+     */
+    private GeminiResponse conReintentos(Supplier<GeminiResponse> llamada) {
+        int intentos = Math.max(1, props.getIa().getIntentos());
+        long espera = props.getIa().getBackoffInicialMs();
+
+        for (int intento = 1; ; intento++) {
+            try {
+                return llamada.get();
+            } catch (RestClientException e) {
+                if (intento >= intentos || !esTransitorio(e)) {
+                    throw e;
+                }
+                log.warn("Intento {}/{} falló ({}). Reintento en {}ms",
+                        intento, intentos, e.getMessage(), espera);
+                dormir(espera);
+                espera *= 2;
+            }
+        }
+    }
+
+    /**
+     * Transitorio es lo que puede salir distinto si se vuelve a preguntar:
+     * saturación del proveedor (503), rate limit (429) y timeouts o cortes de
+     * red. Un 400 por request mal armado o un 404 de modelo inexistente no
+     * mejoran esperando, y reintentarlos solo multiplica la espera del usuario.
+     */
+    private boolean esTransitorio(RestClientException e) {
+        if (e instanceof HttpServerErrorException) {
+            return true;
+        }
+        if (e instanceof HttpClientErrorException clientError) {
+            return clientError.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS;
+        }
+        return e instanceof ResourceAccessException;
+    }
+
+    private void dormir(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Reintento interrumpido", e);
+        }
     }
 
     private String extraerTexto(GeminiResponse respuesta) {

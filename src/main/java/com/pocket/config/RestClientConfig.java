@@ -20,7 +20,9 @@ public class RestClientConfig {
     public RestClient iaRestClient(PocketProperties props) {
         return RestClient.builder()
                 .baseUrl(props.getIa().getUrlBase())
-                .requestFactory(factory(props.getIa().getTimeoutSegundos()))
+                .requestFactory(factory(
+                        props.getIa().getConexionTimeoutSegundos(),
+                        props.getIa().getTimeoutSegundos()))
                 .build();
     }
 
@@ -28,14 +30,21 @@ public class RestClientConfig {
     @Bean
     public RestClient cotizacionRestClient(PocketProperties props) {
         return RestClient.builder()
-                .requestFactory(factory(props.getCotizacion().getTimeoutSegundos()))
+                .requestFactory(factory(
+                        props.getCotizacion().getTimeoutSegundos(),
+                        props.getCotizacion().getTimeoutSegundos()))
                 .build();
     }
 
-    private SimpleClientHttpRequestFactory factory(int segundos) {
+    /**
+     * Conectar y leer se cortan por separado: conectar es rápido o no va a
+     * serlo nunca, mientras que esperar a que el modelo genere la respuesta
+     * lleva decenas de segundos.
+     */
+    private SimpleClientHttpRequestFactory factory(int conexionSegundos, int lecturaSegundos) {
         SimpleClientHttpRequestFactory f = new SimpleClientHttpRequestFactory();
-        f.setConnectTimeout(Duration.ofSeconds(segundos));
-        f.setReadTimeout(Duration.ofSeconds(segundos));
+        f.setConnectTimeout(Duration.ofSeconds(conexionSegundos));
+        f.setReadTimeout(Duration.ofSeconds(lecturaSegundos));
         return f;
     }
 }
