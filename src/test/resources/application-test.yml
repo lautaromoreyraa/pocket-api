@@ -20,3 +20,12 @@ pocket:
       secret: secreto-solo-para-tests-no-usar-en-ningun-otro-lado-1234567890
   ia:
     api-key: fake-key-para-tests
+    # Fijado a proposito. application.yml importa el application-local.properties
+    # de la raiz -que es de desarrollo y esta gitignoreado- tambien al correr los
+    # tests, asi que sin esto la suite depende de que proveedor tenga configurado
+    # cada uno en su maquina: con "groq" en local, los tests de AudioController
+    # activan el otro procesador, cuyo RestClient no esta mockeado, y salen a
+    # internet de verdad.
+    proveedor: gemini
+    groq:
+      api-key: fake-key-para-tests
