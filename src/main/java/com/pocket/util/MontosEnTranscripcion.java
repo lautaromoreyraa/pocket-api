@@ -39,6 +39,13 @@ public final class MontosEnTranscripcion {
             Map.entry("setecientos", 700L), Map.entry("ochocientos", 800L),
             Map.entry("novecientos", 900L));
 
+    /**
+     * "gamba" es cien en lunfardo. No tiene equivalente formal en la lista de
+     * palabras porque nadie dice "gamba" como número suelto: siempre multiplica
+     * ("dos gambas" = 200), igual que "luca" y "palo".
+     */
+    private static final Set<String> ESCALA_CIEN = Set.of("gamba", "gambas");
+
     /** "luca" es mil en lunfardo; el modelo suele transcribirlo tal cual. */
     private static final Set<String> ESCALA_MIL = Set.of("mil", "luca", "lucas");
     private static final Set<String> ESCALA_MILLON = Set.of("millon", "millones", "palo", "palos");
@@ -46,6 +53,7 @@ public final class MontosEnTranscripcion {
     /** "cinco lucas y media" = 5500: suma la mitad de la última escala aplicada. */
     private static final Set<String> MITAD = Set.of("medio", "media");
 
+    private static final BigDecimal CIEN = BigDecimal.valueOf(100);
     private static final BigDecimal MIL = BigDecimal.valueOf(1000);
     private static final BigDecimal MILLON = BigDecimal.valueOf(1_000_000);
     private static final BigDecimal DOS = BigDecimal.valueOf(2);
@@ -142,6 +150,11 @@ public final class MontosEnTranscripcion {
             if (palabra != null) {
                 resolverY(BigDecimal.valueOf(palabra));
                 sumar(BigDecimal.valueOf(palabra));
+                return;
+            }
+            if (ESCALA_CIEN.contains(token)) {
+                resolverY(null);
+                aplicarEscala(CIEN);
                 return;
             }
             if (ESCALA_MIL.contains(token)) {

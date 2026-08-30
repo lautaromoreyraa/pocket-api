@@ -88,6 +88,21 @@ class MontosEnTranscripcionTest {
         void reconoceLucasYPalos(String texto, String monto) {
             assertThat(menciona(texto, monto)).isTrue();
         }
+
+        @ParameterizedTest(name = "{0} -> {1}")
+        @CsvSource(delimiter = ',', value = {
+                "Puse dos gambas en la SUBE,        200",
+                "Gasté una gamba en el kiosco,      100",
+                "Fueron cinco gambas,               500",
+                // El caso real que fallaba: el modelo resolvia "2 gambas" a 200
+                // y el verificador no lo encontraba en la transcripcion, asi que
+                // descartaba el audio entero por fabricado.
+                "Gasté 2 gambas en la sube,         200"
+        })
+        @DisplayName("Lunfardo: gamba es cien")
+        void reconoceGambas(String texto, String monto) {
+            assertThat(MontosEnTranscripcion.menciona(texto, new BigDecimal(monto))).isTrue();
+        }
     }
 
     @Nested
