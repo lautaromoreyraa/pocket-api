@@ -188,7 +188,9 @@ pocket:
       url-base: https://api.groq.com/openai/v1
       # Modelos pinneados, igual que el de Gemini y por la misma razon.
       modelo-voz: whisper-large-v3
-      modelo-texto: llama-3.3-70b-versatile
+      # Los llama-3.x se apagaron en agosto de 2026. La lista vigente sale de
+      # GET /openai/v1/models con la key, no de la documentacion.
+      modelo-texto: ${IA_MODELO_TEXTO:openai/gpt-oss-20b}
       # La API key NO va aca. Ver application-local.properties / env var.
       api-key: ${GROQ_API_KEY:}
     # La API key NO va acá. Ver application-local.properties / env var.

@@ -159,8 +159,17 @@ public class PocketProperties {
             /** Reconocimiento de voz. Devuelve la transcripción y nada más. */
             private String modeloVoz = "whisper-large-v3";
 
-            /** Extrae los gastos del texto transcripto. No recibe audio. */
-            private String modeloTexto = "llama-3.3-70b-versatile";
+            /**
+             * Extrae los gastos del texto transcripto. No recibe audio.
+             *
+             * Groq deprecó y apagó los llama-3.x en agosto de 2026, así que el
+             * modelo pinneado dejó de existir de un día para el otro y la API
+             * empezó a devolver 404. El pin sigue siendo obligatorio (ver la
+             * convención 7), pero acá hay que revisarlo cada tanto: la lista
+             * autoritativa es GET /openai/v1/models con la key de la cuenta,
+             * no la documentación.
+             */
+            private String modeloTexto = "openai/gpt-oss-20b";
 
             /** La API key NO va acá. Ver application-local.properties / env var. */
             private String apiKey;
