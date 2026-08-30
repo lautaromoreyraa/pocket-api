@@ -6,8 +6,10 @@ import com.pocket.dto.auth.TokenResponse;
 import com.pocket.exception.NoAutenticadoException;
 import com.pocket.repository.UsuarioRepository;
 import com.pocket.security.jwt.JwtService;
+import com.pocket.event.UsuarioCreado;
 import com.pocket.service.auth.AuthService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +22,7 @@ public class AuthServiceImpl implements AuthService {
 
     private final UsuarioRepository usuarioRepository;
     private final JwtService jwtService;
+    private final ApplicationEventPublisher eventos;
 
     @Override
     @Transactional
@@ -39,9 +42,17 @@ public class AuthServiceImpl implements AuthService {
      */
     private Usuario crear(String deviceUuid) {
         try {
-            return usuarioRepository.save(Usuario.builder()
+            Usuario nuevo = usuarioRepository.save(Usuario.builder()
                     .deviceUuid(deviceUuid)
                     .build());
+
+            // Lo que escuche esto corre después del commit y en su propia
+            // transacción: sembrar la demo acá adentro haría que un save fallido
+            // marcara esta transacción como rollback-only y tumbara el alta con
+            // él, que es exactamente lo que no puede pasar en la identificación.
+            eventos.publishEvent(new UsuarioCreado(nuevo.getId()));
+
+            return nuevo;
         } catch (DataIntegrityViolationException e) {
             return usuarioRepository.findByDeviceUuid(deviceUuid)
                     .orElseThrow(() -> e);

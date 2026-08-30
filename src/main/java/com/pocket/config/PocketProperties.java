@@ -1,5 +1,7 @@
 package com.pocket.config;
 
+import java.util.List;
+
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -23,6 +25,8 @@ public class PocketProperties {
     private Security security = new Security();
     private Ia ia = new Ia();
     private Cotizacion cotizacion = new Cotizacion();
+    private Web web = new Web();
+    private Demo demo = new Demo();
 
     /** Detección de gasto hormiga (RN-01, RN-02). */
     @Getter @Setter
@@ -123,6 +127,59 @@ public class PocketProperties {
          * espera: se corta y se propaga el error.
          */
         private long esperaMaximaMs = 10_000;
+
+        /**
+         * Tope de procesamientos de audio por usuario y por día. 0 = sin tope.
+         *
+         * Existe por la demo pública: la cuota del free tier es de 20 requests
+         * diarios <b>por modelo</b>, y sin un tope el primer visitante que se
+         * entusiasme deja sin audio a todos los que entren después. También
+         * evita que alguien queme la key a propósito, que es barato de hacer
+         * cuando el alta de usuario es anónima.
+         */
+        private int limiteDiarioPorUsuario = 0;
+    }
+
+    /**
+     * Exposición a navegadores.
+     *
+     * La app nativa no necesita CORS: el navegador es el único que aplica la
+     * política del mismo origen. Pero la demo web del portfolio corre en otro
+     * dominio que la API, así que sin esto el navegador bloquea cada request
+     * antes de que salga.
+     *
+     * La lista vacía por defecto es deliberada: en local y en la app nativa no
+     * hay ningún origen que habilitar, y una whitelist vacía no es lo mismo que
+     * un "*" olvidado en producción.
+     */
+    @Getter @Setter
+    public static class Web {
+        private List<String> origenesPermitidos = List.of();
+    }
+
+    /**
+     * Datos de ejemplo para la demo pública.
+     *
+     * La app es anónima por dispositivo, así que un visitante nuevo abre la
+     * demo y ve todas las pantallas en cero: sin gráfico, sin hormigas, sin
+     * promedio histórico. Con esto activado, cada usuario nuevo nace con unos
+     * meses de historia y puede tocar y borrar todo sin afectar al siguiente.
+     *
+     * Apagado por defecto: en desarrollo y en un uso real, inventarle gastos a
+     * alguien que recién instala la app sería exactamente lo que no se quiere.
+     */
+    @Getter @Setter
+    public static class Demo {
+        private boolean sembrar = false;
+
+        /**
+         * Meses de historia que se generan, contando el actual.
+         *
+         * Cuatro y no tres: el promedio histórico exige <b>más</b> de
+         * `promedio.meses-minimos` meses previos, así que con tres el visitante
+         * vería la comparación contra el promedio siempre vacía.
+         */
+        private int mesesHistoria = 4;
     }
 
     /** Integración con la API del dólar blue (RF-38, RF-40). */

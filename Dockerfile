@@ -44,6 +44,14 @@ USER pocket
 
 EXPOSE 8080
 
-# Deja que la JVM respete los límites de memoria del contenedor en vez de
-# leer los de la máquina anfitriona.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
+# Techo de memoria explícito, no un porcentaje del host.
+#
+# En un hosting que factura por RAM consumida, MaxRAMPercentage sale caro por
+# omisión: la JVM toma su parte de lo que vea disponible y el recolector no
+# devuelve lo que ya no usa, así que el proceso se estaciona en el máximo que
+# tocó alguna vez y eso es lo que se paga todos los meses.
+#
+# 320 MB de heap le sobran a esta API —los reportes son agregados de SQL, no
+# colecciones grandes en memoria— y SerialGC evita los hilos y las estructuras
+# auxiliares que G1 mantiene, que en un contenedor de un solo core no compensan.
+ENTRYPOINT ["java", "-Xmx320m", "-XX:MaxMetaspaceSize=128m", "-XX:+UseSerialGC", "-Xss512k", "-jar", "/app/app.jar"]

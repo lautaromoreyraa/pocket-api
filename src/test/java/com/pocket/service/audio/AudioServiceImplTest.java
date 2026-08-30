@@ -7,6 +7,7 @@ import com.pocket.enumeration.MedioPago;
 import com.pocket.exception.ArchivoInvalidoException;
 import com.pocket.service.audio.impl.AudioServiceImpl;
 import com.pocket.service.auth.AuthService;
+import com.pocket.service.audio.LimitadorDeAudio;
 import com.pocket.service.ia.ProcesadorIAService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,7 @@ class AudioServiceImplTest {
 
     private ProcesadorIAService procesadorIA;
     private AuthService authService;
+    private LimitadorDeAudio limitador;
     private AudioServiceImpl service;
 
     private final Usuario usuario = Usuario.builder().id(UUID.randomUUID()).deviceUuid("dev").build();
@@ -39,7 +41,8 @@ class AudioServiceImplTest {
     void setUp() {
         procesadorIA = mock(ProcesadorIAService.class);
         authService = mock(AuthService.class);
-        service = new AudioServiceImpl(procesadorIA, authService);
+        limitador = mock(LimitadorDeAudio.class);
+        service = new AudioServiceImpl(procesadorIA, authService, limitador);
     }
 
     @Test

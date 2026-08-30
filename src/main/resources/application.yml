@@ -172,7 +172,29 @@ pocket:
     # otro lado hay alguien con el teléfono en la mano. Cuota diaria agotada
     # pide decenas de segundos y ahí no hay nada que esperar.
     espera-maxima-ms: 10000
+    # Tope de audios por usuario y por día. 0 = sin tope (uso normal de la app).
+    # En la demo pública se activa: la cuota del free tier es de 20 requests
+    # diarios por modelo, y sin tope el primer visitante entusiasta deja sin
+    # audio a todos los que entren después.
+    limite-diario-por-usuario: ${IA_LIMITE_DIARIO:0}
     # La API key NO va acá. Ver application-local.properties / env var.
+
+  # --- Exposición a navegadores ----------------------------------------------
+  web:
+    # Orígenes habilitados para CORS, separados por coma. Vacío = ninguno, que
+    # es lo correcto para la app nativa: el navegador es el único que aplica la
+    # política del mismo origen. La demo web sí lo necesita, y llega por env var.
+    origenes-permitidos: ${CORS_ORIGENES:}
+
+  # --- Demo pública ----------------------------------------------------------
+  demo:
+    # Siembra unos meses de gastos al crear un usuario nuevo. Apagado por
+    # defecto: inventarle gastos a alguien que recién instala la app es
+    # exactamente lo que no se quiere. Se activa solo en el deploy de la demo.
+    sembrar: ${DEMO_SEMBRAR:false}
+    # Cuatro y no tres: el promedio histórico pide MÁS de promedio.meses-minimos
+    # meses previos, así que con tres la comparación se vería siempre vacía.
+    meses-historia: 4
 
   # --- Integración con cotización del dólar (RF-38, RF-40) -------------------
   cotizacion:

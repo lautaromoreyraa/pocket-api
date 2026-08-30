@@ -28,6 +28,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(422, "Audio no comprendido", e.getMessage()));
     }
 
+    @ExceptionHandler(LimiteDeAudioAlcanzadoException.class)
+    public ResponseEntity<ErrorResponse> limiteDeAudio(LimiteDeAudioAlcanzadoException e) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ErrorResponse.de(429, "Límite alcanzado", e.getMessage()));
+    }
+
     @ExceptionHandler(NoAutenticadoException.class)
     public ResponseEntity<ErrorResponse> noAutenticado(NoAutenticadoException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

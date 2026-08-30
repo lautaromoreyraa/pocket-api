@@ -4,6 +4,7 @@ import com.pocket.domain.Usuario;
 import com.pocket.dto.audio.AudioResponse;
 import com.pocket.exception.ArchivoInvalidoException;
 import com.pocket.service.audio.AudioService;
+import com.pocket.service.audio.LimitadorDeAudio;
 import com.pocket.service.auth.AuthService;
 import com.pocket.service.ia.ProcesadorIAService;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class AudioServiceImpl implements AudioService {
 
     private final ProcesadorIAService procesadorIA;
     private final AuthService authService;
+    private final LimitadorDeAudio limitador;
 
     @Override
     public AudioResponse procesar(MultipartFile audio) {
@@ -51,6 +53,12 @@ public class AudioServiceImpl implements AudioService {
 
         // No persiste: el alta ocurre recién cuando el usuario confirma (RF-08).
         Usuario usuario = authService.actual();
+
+        // El cupo se descuenta antes de llamar al proveedor, no después de que
+        // conteste bien: una respuesta que termina en 422 o en 502 igual gastó
+        // la cuota externa, que es justamente lo que este tope protege.
+        limitador.registrarUso(usuario);
+
         return procesadorIA.extraerGastos(audio, usuario);
     }
 
