@@ -26,6 +26,20 @@ public class RestClientConfig {
                 .build();
     }
 
+    /**
+     * Cliente para Groq. Se crea siempre, aunque el proveedor activo sea otro:
+     * un RestClient sin usar no cuesta nada y evita condicionar la config.
+     */
+    @Bean
+    public RestClient groqRestClient(PocketProperties props) {
+        return RestClient.builder()
+                .baseUrl(props.getIa().getGroq().getUrlBase())
+                .requestFactory(factory(
+                        props.getIa().getConexionTimeoutSegundos(),
+                        props.getIa().getTimeoutSegundos()))
+                .build();
+    }
+
     /** Cliente para la API de cotización del blue (RF-38). */
     @Bean
     public RestClient cotizacionRestClient(PocketProperties props) {

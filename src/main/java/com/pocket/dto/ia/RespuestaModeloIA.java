@@ -6,12 +6,15 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Lo que el modelo devuelve como texto (el JSON dentro de GeminiResponse),
- * ya parseado. Distinto de GastoDetectado: acá categoria y medioPago todavía
- * son texto libre del modelo, sin resolver contra la base ni con fallback.
+ * El JSON que devuelve el modelo, ya parseado. Distinto de GastoDetectado:
+ * acá categoria y medioPago todavía son texto libre del modelo, sin resolver
+ * contra la base ni con fallback.
+ *
+ * La forma es la misma para todos los proveedores porque la define el prompt,
+ * no la API: por eso el tipo no lleva el nombre de ninguno.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record GeminiRespuestaModelo(String transcripcion, List<GastoModelo> gastos) {
+public record RespuestaModeloIA(String transcripcion, List<GastoModelo> gastos) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record GastoModelo(

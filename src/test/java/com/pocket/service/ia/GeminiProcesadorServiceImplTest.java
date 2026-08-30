@@ -11,6 +11,8 @@ import com.pocket.enumeration.MedioPago;
 import com.pocket.exception.AudioNoComprendidoException;
 import com.pocket.repository.CategoriaRepository;
 import com.pocket.service.ia.impl.GeminiProcesadorServiceImpl;
+import com.pocket.service.ia.ArmadorDeGastos;
+import com.pocket.service.ia.ReintentosDeIA;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -86,7 +88,11 @@ class GeminiProcesadorServiceImplTest {
         // Backoff casi nulo: acá se verifica la política de reintento, no la espera.
         props.getIa().setBackoffInicialMs(1);
 
-        service = new GeminiProcesadorServiceImpl(iaRestClient, props, categoriaRepository, new ObjectMapper());
+        // El armador va real y no mockeado: la verificación de coherencia contra
+        // gastos fabricados es justamente lo que varios de estos tests ejercitan.
+        service = new GeminiProcesadorServiceImpl(
+                iaRestClient, props, categoriaRepository, new ObjectMapper(),
+                new ArmadorDeGastos(props), new ReintentosDeIA(props));
     }
 
     private Categoria categoria(Integer id, String nombre) {
@@ -465,7 +471,8 @@ class GeminiProcesadorServiceImplTest {
         sinReintentos.getIa().setApiKey("test-key");
         sinReintentos.getIa().setIntentos(1);
         GeminiProcesadorServiceImpl servicio = new GeminiProcesadorServiceImpl(
-                iaRestClient, sinReintentos, categoriaRepository, new ObjectMapper());
+                iaRestClient, sinReintentos, categoriaRepository, new ObjectMapper(),
+                new ArmadorDeGastos(sinReintentos), new ReintentosDeIA(sinReintentos));
 
         when(responseSpec.body(GeminiResponse.class))
                 .thenThrow(HttpServerErrorException.create(HttpStatus.SERVICE_UNAVAILABLE,

@@ -138,6 +138,33 @@ public class PocketProperties {
          * cuando el alta de usuario es anónima.
          */
         private int limiteDiarioPorUsuario = 0;
+
+        private Groq groq = new Groq();
+
+        /**
+         * Proveedor alternativo, en dos pasos: un modelo de voz transcribe y un
+         * modelo de texto extrae los gastos de esa transcripción.
+         *
+         * La ventaja no es la cuota —que igual es dos órdenes de magnitud mayor
+         * que la del free tier de Gemini— sino que el modelo que extrae
+         * <b>nunca escucha el audio</b>. Solo ve texto, así que no puede
+         * inventar un monto que no esté escrito: el control de coherencia pasa
+         * de verificar al mismo modelo contra sí mismo a cruzar dos fuentes
+         * independientes. Ver "Gastos fabricados" en el CLAUDE.md.
+         */
+        @Getter @Setter
+        public static class Groq {
+            private String urlBase = "https://api.groq.com/openai/v1";
+
+            /** Reconocimiento de voz. Devuelve la transcripción y nada más. */
+            private String modeloVoz = "whisper-large-v3";
+
+            /** Extrae los gastos del texto transcripto. No recibe audio. */
+            private String modeloTexto = "llama-3.3-70b-versatile";
+
+            /** La API key NO va acá. Ver application-local.properties / env var. */
+            private String apiKey;
+        }
     }
 
     /**

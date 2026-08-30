@@ -140,7 +140,12 @@ pocket:
 
   # --- Integración con la IA (RF-05) -----------------------------------------
   ia:
-    proveedor: gemini
+    # gemini -> un modelo multimodal escucha el audio y devuelve los gastos.
+    # groq   -> dos pasos: Whisper transcribe y un modelo de texto extrae.
+    #
+    # El segundo es mas resistente a gastos fabricados: el modelo que extrae no
+    # escucha nada, asi que no puede inventar un monto que no este en el texto.
+    proveedor: ${IA_PROVEEDOR:gemini}
     # MODELO PINNEADO A PROPÓSITO. No usar un alias tipo "gemini-flash-latest".
     #
     # Un alias resuelve a lo que Google decida en cada momento, y no todos los
@@ -177,6 +182,15 @@ pocket:
     # diarios por modelo, y sin tope el primer visitante entusiasta deja sin
     # audio a todos los que entren después.
     limite-diario-por-usuario: ${IA_LIMITE_DIARIO:0}
+
+    # --- Proveedor alternativo: Groq (solo si pocket.ia.proveedor=groq) ------
+    groq:
+      url-base: https://api.groq.com/openai/v1
+      # Modelos pinneados, igual que el de Gemini y por la misma razon.
+      modelo-voz: whisper-large-v3
+      modelo-texto: llama-3.3-70b-versatile
+      # La API key NO va aca. Ver application-local.properties / env var.
+      api-key: ${GROQ_API_KEY:}
     # La API key NO va acá. Ver application-local.properties / env var.
 
   # --- Exposición a navegadores ----------------------------------------------
