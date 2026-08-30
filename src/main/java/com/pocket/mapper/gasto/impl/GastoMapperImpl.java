@@ -37,8 +37,11 @@ public class GastoMapperImpl implements GastoMapper {
     private GastoResponse aResponse(Gasto g, Long ocurrencias, int umbralHormiga) {
         if (g == null) return null;
 
-        // Las cuotas nunca son hormiga (RN-02), aunque su categoría se repita.
-        boolean hormiga = ocurrencias != null && !g.esCuota() && ocurrencias >= umbralHormiga;
+        // Ni las cuotas ni los gastos fijos son hormiga (RN-02), aunque su
+        // categoría se repita: son plata comprometida de antemano, no un gasto
+        // chico y evitable que el usuario pueda decidir no repetir.
+        boolean computaHormiga = !g.esCuota() && !g.esFijo();
+        boolean hormiga = ocurrencias != null && computaHormiga && ocurrencias >= umbralHormiga;
 
         return new GastoResponse(
                 g.getId(),
@@ -56,7 +59,11 @@ public class GastoMapperImpl implements GastoMapper {
                 g.getNroCuota(),
                 g.esCuota() ? g.getCompraFinanciada().getCantidadCuotas() : null,
                 hormiga,
-                ocurrencias
+                // El badge "7.ª VEZ" tampoco se muestra sobre una cuota o un
+                // fijo: el contador cuenta repeticiones evitables de la
+                // categoría, y colgárselo a la factura de luz diría que la
+                // pagaste 7 veces, que no es lo que pasó.
+                computaHormiga ? ocurrencias : null
         );
     }
 }

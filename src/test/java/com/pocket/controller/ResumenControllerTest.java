@@ -103,6 +103,43 @@ class ResumenControllerTest {
                 .andExpect(status().isCreated());
     }
 
+    /** Crea la plantilla y la registra en el período: deja un `gasto` con origen FIJO. */
+    private void crearGastoFijoRegistrado(Integer categoriaId, String monto, String medioPago,
+                                          int diaDelMes, String periodo) throws Exception {
+        String plantilla = """
+                {
+                  "descripcion": "fijo",
+                  "monto": %s,
+                  "categoriaId": %d,
+                  "medioPago": "%s",
+                  "diaDelMes": %d
+                }
+                """.formatted(monto, categoriaId, medioPago, diaDelMes);
+
+        String creada = mockMvc.perform(post("/api/gastos-fijos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(plantilla))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String id = objectMapper.readTree(creada).get("id").asText();
+
+        String registro = """
+                {
+                  "periodo": "%s",
+                  "monto": %s,
+                  "idempotencyKey": "%s"
+                }
+                """.formatted(periodo, monto, UUID.randomUUID());
+
+        mockMvc.perform(post("/api/gastos-fijos/" + id + "/registrar")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registro))
+                .andExpect(status().isCreated());
+    }
+
     private void crearIngreso(String monto, String fecha) throws Exception {
         String cuerpo = """
                 {
@@ -157,7 +194,7 @@ class ResumenControllerTest {
     }
 
     @Test
-    @DisplayName("Una compra en cuotas no cuenta para el umbral de hormiga, aunque sume ocurrencias en el gráfico (RN-02)")
+    @DisplayName("Una compra en cuotas suma al total de la categoría pero no a sus ocurrencias (RN-02)")
     void cuotaNoCuentaComoHormiga() throws Exception {
         // La compra deja 1 cuota en marzo (comprada en febrero, imputada al mes siguiente).
         crearCompra(deliveryId, "6000.00", 6, "2026-02-15");
@@ -167,11 +204,38 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", true);
 
-        // El gráfico ve las 3 filas (2 gastos sueltos + 1 cuota): las cuotas cuentan
-        // para el total y el conteo mostrado (RF-23).
-        assertThat(categoria(resumen, "Delivery/Restaurantes").get("ocurrencias").asLong()).isEqualTo(3);
-        // Pero la detección de hormiga (RN-01/RN-02) excluye la cuota: solo 2
-        // ocurrencias reales, por debajo del umbral (3), así que no hay aviso.
+        JsonNode delivery = categoria(resumen, "Delivery/Restaurantes");
+
+        // El total incluye la cuota: es plata que salió (RF-23). 1000 + 1200 + 1000
+        // de la primera cuota de la compra de 6000 en 6.
+        assertThat(delivery.get("total").asDouble()).isEqualTo(3200.00);
+
+        // Las ocurrencias, en cambio, cuentan solo lo que puede ser hormiga: los
+        // 2 gastos sueltos. Antes acá viajaba un 3 que incluía la cuota, y eso
+        // hacía que la barra se pintara en rojo con 3 mientras el aviso decía que
+        // no había hormiga: el mismo período contestado de dos formas distintas.
+        assertThat(delivery.get("ocurrencias").asLong()).isEqualTo(2);
+        assertThat(delivery.get("hormiga").asBoolean()).isFalse();
+
+        // 2 ocurrencias reales, por debajo del umbral (3): no hay aviso.
+        assertThat(resumen.get("avisoHormiga").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Un gasto fijo suma al total de la categoría pero tampoco cuenta como hormiga (RN-02)")
+    void fijoNoCuentaComoHormiga() throws Exception {
+        // Tres gastos de la misma categoría en el mes: con el umbral en 3 esto
+        // sería hormiga… salvo que uno de los tres sea un fijo.
+        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2026-03-05");
+        crearGasto(deliveryId, "1200.00", "EFECTIVO", "2026-03-12");
+        crearGastoFijoRegistrado(deliveryId, "3000.00", "DEBITO", 20, "2026-03");
+
+        JsonNode resumen = resumen("2026-03", false);
+        JsonNode delivery = categoria(resumen, "Delivery/Restaurantes");
+
+        assertThat(delivery.get("total").asDouble()).isEqualTo(5200.00);
+        assertThat(delivery.get("ocurrencias").asLong()).isEqualTo(2);
+        assertThat(delivery.get("hormiga").asBoolean()).isFalse();
         assertThat(resumen.get("avisoHormiga").isNull()).isTrue();
     }
 

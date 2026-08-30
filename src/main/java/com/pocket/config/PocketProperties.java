@@ -29,6 +29,18 @@ public class PocketProperties {
     public static class Hormiga {
         private int umbralOcurrencias = 3;
         private boolean excluirCuotas = true;
+
+        /**
+         * Los gastos fijos tampoco cuentan como hormiga.
+         *
+         * Un gasto hormiga es un gasto chico, repetido y <b>evitable</b>: el
+         * café de todos los días, el delivery del viernes. La luz, el internet
+         * y el alquiler se repiten todos los meses por definición y no hay
+         * ninguna acción que el usuario pueda tomar la próxima vez. Contarlos
+         * pintaría "Servicios" en rojo todos los meses y el aviso dejaría de
+         * significar algo.
+         */
+        private boolean excluirFijos = true;
     }
 
     /** Promedio histórico (RN-05). */

@@ -69,7 +69,7 @@ class ResumenServiceImplTest {
         Usuario usuario = Usuario.builder().id(usuarioId).deviceUuid("dev").build();
         lenient().when(authService.actual()).thenReturn(usuario);
 
-        lenient().when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), anyBoolean(), anyBoolean()))
+        lenient().when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), anyBoolean(), anyBoolean(), anyBoolean()))
                 .thenReturn(List.of());
         lenient().when(gastoRepository.findUltimosDelPeriodo(eq(usuarioId), eq(desde), eq(hasta), anyBoolean(), any()))
                 .thenReturn(List.of());
@@ -163,8 +163,8 @@ class ResumenServiceImplTest {
     @DisplayName("Cada movimiento trae cuántas veces se repitió su categoría en el período")
     void cadaMovimientoTraeSusOcurrencias() {
         Categoria delivery = categoria(1, "Delivery");
-        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, false, true))
-                .thenReturn(List.<Object[]>of(new Object[]{delivery, 7L, new BigDecimal("58800.00")}));
+        totales(false, delivery, 7L, "58800.00");
+        ocurrencias(false, delivery, 7L, "58800.00");
         when(gastoRepository.findUltimosDelPeriodo(eq(usuarioId), eq(desde), eq(hasta), eq(false), any()))
                 .thenReturn(List.of(gasto("Empanadas", 1, new BigDecimal("8400.00"))));
 
@@ -178,8 +178,8 @@ class ResumenServiceImplTest {
     @DisplayName("Una categoría por debajo del umbral no marca el movimiento como hormiga")
     void pordebajoDelUmbralNoEsHormiga() {
         Categoria delivery = categoria(1, "Delivery");
-        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, false, true))
-                .thenReturn(List.<Object[]>of(new Object[]{delivery, 2L, new BigDecimal("8000.00")}));
+        totales(false, delivery, 2L, "8000.00");
+        ocurrencias(false, delivery, 2L, "8000.00");
         when(gastoRepository.findUltimosDelPeriodo(eq(usuarioId), eq(desde), eq(hasta), eq(false), any()))
                 .thenReturn(List.of(gasto("Empanadas", 1, new BigDecimal("4000.00"))));
 
@@ -193,16 +193,61 @@ class ResumenServiceImplTest {
     @DisplayName("Una cuota nunca se marca como hormiga, aunque su categoría se repita (RN-02)")
     void laCuotaNoEsHormiga() {
         Categoria hogar = categoria(1, "Delivery");
-        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, true, true))
-                .thenReturn(List.<Object[]>of(new Object[]{hogar, 9L, new BigDecimal("90000.00")}));
+        totales(true, hogar, 9L, "90000.00");
+        ocurrencias(true, hogar, 9L, "90000.00");
         when(gastoRepository.findUltimosDelPeriodo(eq(usuarioId), eq(desde), eq(hasta), eq(true), any()))
                 .thenReturn(List.of(cuota("TV", new BigDecimal("10000.00"), 2, 9)));
 
         GastoResponse movimiento = service.armar(periodo, true).ultimosMovimientos().get(0);
 
         assertThat(movimiento.hormiga()).isFalse();
+        // El badge "N.ª VEZ" tampoco viaja: contarle 9 repeticiones a una cuota
+        // diría que la pagaste 9 veces este mes.
+        assertThat(movimiento.ocurrenciasCategoria()).isNull();
         assertThat(movimiento.nroCuota()).isEqualTo(2);
         assertThat(movimiento.compraFinanciadaId()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("El total de la categoría cuenta todo, pero las ocurrencias solo lo que puede ser hormiga")
+    void totalYOcurrenciasSalenDeAgregadosDistintos() {
+        Categoria servicios = categoria(1, "Servicios");
+        // Tres filas de plata: dos gastos sueltos y un fijo…
+        totales(false, servicios, 3L, "60000.00");
+        // …pero solo dos cuentan como repeticiones evitables.
+        ocurrencias(false, servicios, 2L, "15000.00");
+
+        CategoriaResumenResponse fila = service.armar(periodo, false).porCategoria().get(0);
+
+        assertThat(fila.total()).isEqualByComparingTo("60000.00");
+        assertThat(fila.ocurrencias()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Una categoría con plata pero sin repeticiones contables muestra 0 ocurrencias, no se cae")
+    void categoriaSoloConFijosMuestraCeroOcurrencias() {
+        Categoria servicios = categoria(1, "Servicios");
+        totales(false, servicios, 1L, "45000.00");
+        // El agregado de ocurrencias no trae la categoría: el mes solo tuvo fijos.
+        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, false, false, false))
+                .thenReturn(List.of());
+
+        CategoriaResumenResponse fila = service.armar(periodo, false).porCategoria().get(0);
+
+        assertThat(fila.total()).isEqualByComparingTo("45000.00");
+        assertThat(fila.ocurrencias()).isZero();
+    }
+
+    /** El agregado de PLATA: incluye cuotas y fijos. */
+    private void totales(boolean credito, Categoria categoria, long cantidad, String total) {
+        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, true, true))
+                .thenReturn(List.<Object[]>of(new Object[]{categoria, cantidad, new BigDecimal(total)}));
+    }
+
+    /** El agregado de REPETICIONES: sin cuotas ni fijos (RN-02). */
+    private void ocurrencias(boolean credito, Categoria categoria, long cantidad, String total) {
+        when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, false, false))
+                .thenReturn(List.<Object[]>of(new Object[]{categoria, cantidad, new BigDecimal(total)}));
     }
 
     // --- Cuotas y comprometido -------------------------------------------

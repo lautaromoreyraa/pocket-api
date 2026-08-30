@@ -46,6 +46,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(400, "Cuotas inválidas", e.getMessage()));
     }
 
+    @ExceptionHandler(PeriodoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> periodoInvalido(PeriodoInvalidoException e) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.de(400, "Período inválido", e.getMessage()));
+    }
+
     @ExceptionHandler(CotizacionNoDisponibleException.class)
     public ResponseEntity<ErrorResponse> cotizacionNoDisponible(CotizacionNoDisponibleException e) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)

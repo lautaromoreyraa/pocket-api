@@ -54,17 +54,24 @@ public class ResumenServiceImpl implements ResumenService {
 
         BigDecimal total = gastoRepository.totalDelPeriodo(usuarioId, desde, hasta, credito);
 
-        // Un solo agregado alimenta dos cosas: el gráfico por categoría y el
-        // contador de repeticiones de cada movimiento. No hace falta contar dos veces.
+        // Dos agregados, no uno, porque son dos preguntas distintas.
+        //
+        // El gráfico muestra PLATA y tiene que mostrarla toda: una cuota y un
+        // fijo son plata que salió del bolsillo.
         List<Object[]> agrupado =
-                gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, true);
+                gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, true, true);
+
+        // El contador de REPETICIONES manda a la detección de hormigas, y ahí
+        // rige RN-02: ni cuotas ni fijos. Antes se reusaba el agregado de arriba
+        // y eso hacía que una categoría con 3 cuotas pintara la barra en rojo
+        // pero no generara aviso: el mismo período se contestaba distinto según
+        // qué parte de la pantalla preguntara.
+        Map<Integer, Long> ocurrenciasPorCategoria = ocurrenciasHormiga(usuarioId, desde, hasta, credito);
 
         List<CategoriaResumenResponse> porCategoria = hormigaService.marcarHormigas(
-                agrupado.stream().map(this::aCategoriaResumen).toList());
-
-        Map<Integer, Long> ocurrenciasPorCategoria = agrupado.stream().collect(Collectors.toMap(
-                fila -> ((Categoria) fila[0]).getId(),
-                fila -> (long) fila[1]));
+                agrupado.stream()
+                        .map(fila -> aCategoriaResumen(fila, ocurrenciasPorCategoria))
+                        .toList());
 
         List<Gasto> ultimos = gastoRepository.findUltimosDelPeriodo(
                 usuarioId, desde, hasta, credito,
@@ -169,10 +176,36 @@ public class ResumenServiceImpl implements ResumenService {
         return suma.divide(BigDecimal.valueOf(ventana.size()), 2, RoundingMode.HALF_UP);
     }
 
-    private CategoriaResumenResponse aCategoriaResumen(Object[] fila) {
+    /**
+     * Cuántas veces se repitió cada categoría, contando solo lo que puede ser
+     * hormiga: sin cuotas y sin gastos fijos (RN-02).
+     *
+     * Es el número que alimenta tanto las barras rojas como el badge "7.ª VEZ"
+     * de cada movimiento, así que los dos dicen siempre lo mismo.
+     */
+    private Map<Integer, Long> ocurrenciasHormiga(UUID usuarioId, LocalDate desde,
+                                                  LocalDate hasta, boolean credito) {
+        List<Object[]> filas = gastoRepository.agruparPorCategoria(
+                usuarioId, desde, hasta, credito,
+                !props.getHormiga().isExcluirCuotas(),
+                !props.getHormiga().isExcluirFijos());
+
+        return filas.stream().collect(Collectors.toMap(
+                fila -> ((Categoria) fila[0]).getId(),
+                fila -> (long) fila[1]));
+    }
+
+    /**
+     * El total sale del agregado completo y las ocurrencias del filtrado, así
+     * que una categoría puede mostrar plata con cero repeticiones: es un mes en
+     * el que solo hubo cuotas o fijos. Es la lectura correcta —salió plata, no
+     * hubo nada que evitar— y no un cero que falta.
+     */
+    private CategoriaResumenResponse aCategoriaResumen(Object[] fila,
+                                                       Map<Integer, Long> ocurrenciasPorCategoria) {
         Categoria categoria = (Categoria) fila[0];
-        long ocurrencias = (long) fila[1];
         BigDecimal total = (BigDecimal) fila[2];
+        long ocurrencias = ocurrenciasPorCategoria.getOrDefault(categoria.getId(), 0L);
         return new CategoriaResumenResponse(
                 categoria.getId(), categoria.getNombre(), categoria.getIcono(), categoria.getColor(),
                 total, ocurrencias, false);

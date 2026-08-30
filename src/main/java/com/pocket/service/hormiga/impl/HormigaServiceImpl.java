@@ -29,12 +29,13 @@ public class HormigaServiceImpl implements HormigaService {
     @Override
     public List<HormigaResponse> detectar(UUID usuarioId, YearMonth periodo, boolean credito) {
         boolean incluirCuotas = !props.getHormiga().isExcluirCuotas();
+        boolean incluirFijos = !props.getHormiga().isExcluirFijos();
         List<Object[]> filas = gastoRepository.agruparPorCategoria(
                 usuarioId, PeriodoUtil.primerDia(periodo), PeriodoUtil.ultimoDia(periodo),
-                credito, incluirCuotas);
+                credito, incluirCuotas, incluirFijos);
 
         Map<Integer, BigDecimal> promediosPorCategoria =
-                promediosPorCategoria(usuarioId, periodo, credito, incluirCuotas);
+                promediosPorCategoria(usuarioId, periodo, credito, incluirCuotas, incluirFijos);
 
         return filas.stream()
                 .filter(fila -> (long) fila[1] >= umbral())
@@ -57,11 +58,12 @@ public class HormigaServiceImpl implements HormigaService {
                 .toList();
     }
 
-    /** Promedio histórico por categoría en la ventana configurada (RN-05), con el
-     *  mismo incluirCuotas que la detección actual para que la comparación sea
-     *  contra lo mismo que se está midiendo. Vacío si no hay historia suficiente. */
+    /** Promedio histórico por categoría en la ventana configurada (RN-05), con los
+     *  mismos filtros que la detección actual para que la comparación sea contra
+     *  lo mismo que se está midiendo. Vacío si no hay historia suficiente. */
     private Map<Integer, BigDecimal> promediosPorCategoria(UUID usuarioId, YearMonth periodo,
-                                                            boolean credito, boolean incluirCuotas) {
+                                                            boolean credito, boolean incluirCuotas,
+                                                            boolean incluirFijos) {
         LocalDate primerFecha = gastoRepository.primerPeriodoConGastos(usuarioId);
         YearMonth primerPeriodo = primerFecha == null ? null : YearMonth.from(primerFecha);
         long historiaPrevia = primerPeriodo == null ? 0 : PeriodoUtil.mesesEntre(primerPeriodo, periodo);
@@ -76,7 +78,7 @@ public class HormigaServiceImpl implements HormigaService {
         // Una sola query de rango: los meses sin gastos de la ventana suman $0
         // pero igual cuentan en el divisor (mismo criterio que el promedio global).
         List<Object[]> filasVentana = gastoRepository.agruparPorCategoria(
-                usuarioId, ventanaDesde, ventanaHasta, credito, incluirCuotas);
+                usuarioId, ventanaDesde, ventanaHasta, credito, incluirCuotas, incluirFijos);
 
         BigDecimal cantidadMeses = BigDecimal.valueOf(ventana.size());
         return filasVentana.stream().collect(Collectors.toMap(

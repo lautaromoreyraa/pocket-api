@@ -94,6 +94,10 @@ pocket:
     umbral-ocurrencias: 3
     # Las cuotas de crédito nunca cuentan como hormiga (RN-02).
     excluir-cuotas: true
+    # Los gastos fijos tampoco (RN-02). Una hormiga es un gasto chico, repetido
+    # y evitable; la luz y el alquiler no son ninguna de las tres cosas, y
+    # contarlos dejaría "Servicios" en rojo todos los meses.
+    excluir-fijos: true
 
   # --- Promedio histórico (RN-05) --------------------------------------------
   promedio:

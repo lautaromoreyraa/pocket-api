@@ -38,6 +38,17 @@ public class Gasto {
     private CompraFinanciada compraFinanciada;
 
     /**
+     * No nulo solo si este gasto se materializó desde una plantilla de gasto fijo.
+     *
+     * Queda en null si después se borra la plantilla (ON DELETE SET NULL): los
+     * meses ya pagados son historia y se conservan (RF-44). Por eso el `origen`
+     * sigue diciendo FIJO aunque acá no haya nada.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "gasto_fijo_id")
+    private GastoFijo gastoFijo;
+
+    /**
      * Clave generada por el cliente para evitar duplicados cuando se reintenta
      * el envío de un borrador offline (RF-41, RF-42).
      */
@@ -74,5 +85,16 @@ public class Gasto {
     /** Las cuotas no computan como gasto hormiga (RN-02). */
     public boolean esCuota() {
         return compraFinanciada != null;
+    }
+
+    /**
+     * Los gastos fijos tampoco computan como hormiga (RN-02).
+     *
+     * Se mira el `origen` y no la FK a propósito: si el usuario borra la
+     * plantilla, `gastoFijo` queda en null pero el gasto sigue habiendo sido un
+     * fijo, y la luz no pasa a ser un gasto hormiga retroactivamente.
+     */
+    public boolean esFijo() {
+        return origen == OrigenGasto.FIJO;
     }
 }
