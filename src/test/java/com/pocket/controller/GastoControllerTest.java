@@ -73,7 +73,9 @@ class GastoControllerTest {
                         .content(cuerpoGasto(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fechaImputacion").value("2026-01-01"))
-                .andExpect(jsonPath("$.esCuota").value(false));
+                // Un gasto suelto no tiene compra detrás: es lo que reemplazó
+                // al viejo flag `esCuota`.
+                .andExpect(jsonPath("$.compraFinanciadaId").doesNotExist());
 
         assertThat(gastoRepository.count()).isEqualTo(1);
     }

@@ -161,3 +161,12 @@ spring.log
 #  GENERADOS POR SPRING INITIALIZR
 # =============================================================================
 HELP.md
+
+# -----------------------------------------------------------------------------
+#  Documentacion
+#  Las notas internas del proyecto no se versionan: viven en la maquina de cada
+#  uno. El README si, porque no documenta hacia adentro sino que presenta el
+#  repo hacia afuera.
+# -----------------------------------------------------------------------------
+*.md
+!README.md

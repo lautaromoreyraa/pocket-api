@@ -94,6 +94,10 @@ pocket:
     umbral-ocurrencias: 3
     # Las cuotas de crédito nunca cuentan como hormiga (RN-02).
     excluir-cuotas: true
+    # Los gastos fijos tampoco (RN-02). Una hormiga es un gasto chico, repetido
+    # y evitable; la luz y el alquiler no son ninguna de las tres cosas, y
+    # contarlos dejaría "Servicios" en rojo todos los meses.
+    excluir-fijos: true
 
   # --- Promedio histórico (RN-05) --------------------------------------------
   promedio:
@@ -101,6 +105,12 @@ pocket:
     meses-minimos: 2
     # Ventana de meses hacia atrás usada para calcular el promedio.
     ventana-meses: 12
+
+  # --- Resumen mensual -------------------------------------------------------
+  resumen:
+    # Cuántos movimientos trae el resumen como preview. El listado completo del
+    # período es otra pantalla y la sirve GET /api/gastos.
+    movimientos-maximos: 3
 
   # --- Cuotas de crédito (RN-03, RN-04) --------------------------------------
   cuotas:
@@ -130,11 +140,77 @@ pocket:
 
   # --- Integración con la IA (RF-05) -----------------------------------------
   ia:
-    proveedor: gemini
-    modelo: gemini-2.0-flash
+    # gemini -> un modelo multimodal escucha el audio y devuelve los gastos.
+    # groq   -> dos pasos: Whisper transcribe y un modelo de texto extrae.
+    #
+    # El segundo es mas resistente a gastos fabricados: el modelo que extrae no
+    # escucha nada, asi que no puede inventar un monto que no este en el texto.
+    proveedor: ${IA_PROVEEDOR:gemini}
+    # MODELO PINNEADO A PROPÓSITO. No usar un alias tipo "gemini-flash-latest".
+    #
+    # Un alias resuelve a lo que Google decida en cada momento, y no todos los
+    # modelos leen audio igual. Verificado con audios reales: hay modelos que
+    # reciben el audio (countTokens los cuenta como audio, ~32 tokens/segundo),
+    # responden que solo ven "datos binarios en bruto" y aun así devuelven un
+    # JSON válido con gastos fabricados: montos, categorías y medios de pago
+    # verosímiles que nunca se dijeron. No fallan: inventan.
+    #
+    # Por eso el modelo se pinnea y todo cambio se valida a mano con audios
+    # reales antes de mergear. GeminiProcesadorServiceImpl tiene además un
+    # control de coherencia que descarta la respuesta si algún monto no aparece
+    # en la transcripción, pero es una red de seguridad, no un reemplazo de la
+    # validación manual.
+    modelo: gemini-3.6-flash
     url-base: https://generativelanguage.googleapis.com/v1beta
-    timeout-segundos: 30
+    # Medido con audios reales: entre 9s y 30s para el mismo audio de 8s. La
+    # varianza la pone el proveedor, no nosotros, así que el timeout tiene que
+    # cubrir la cola de la distribución y no el caso promedio.
+    timeout-segundos: 90
+    conexion-timeout-segundos: 10
+    # Los 503 ("high demand") y 429 de Gemini son frecuentes y transitorios.
+    # Se reintenta solo eso; un 404 de modelo inexistente no mejora esperando.
+    intentos: 3
+    backoff-inicial-ms: 1000
+    # Gemini dice en el cuerpo del 429 cuánto esperar ("retryDelay": "35s") y
+    # ese valor pisa al backoff: reintentar antes es pedir el mismo error. Pero
+    # si lo que pide supera este techo no se espera, se corta y se propaga: del
+    # otro lado hay alguien con el teléfono en la mano. Cuota diaria agotada
+    # pide decenas de segundos y ahí no hay nada que esperar.
+    espera-maxima-ms: 10000
+    # Tope de audios por usuario y por día. 0 = sin tope (uso normal de la app).
+    # En la demo pública se activa: la cuota del free tier es de 20 requests
+    # diarios por modelo, y sin tope el primer visitante entusiasta deja sin
+    # audio a todos los que entren después.
+    limite-diario-por-usuario: ${IA_LIMITE_DIARIO:0}
+
+    # --- Proveedor alternativo: Groq (solo si pocket.ia.proveedor=groq) ------
+    groq:
+      url-base: https://api.groq.com/openai/v1
+      # Modelos pinneados, igual que el de Gemini y por la misma razon.
+      modelo-voz: whisper-large-v3
+      # Los llama-3.x se apagaron en agosto de 2026. La lista vigente sale de
+      # GET /openai/v1/models con la key, no de la documentacion.
+      modelo-texto: ${IA_MODELO_TEXTO:openai/gpt-oss-20b}
+      # La API key NO va aca. Ver application-local.properties / env var.
+      api-key: ${GROQ_API_KEY:}
     # La API key NO va acá. Ver application-local.properties / env var.
+
+  # --- Exposición a navegadores ----------------------------------------------
+  web:
+    # Orígenes habilitados para CORS, separados por coma. Vacío = ninguno, que
+    # es lo correcto para la app nativa: el navegador es el único que aplica la
+    # política del mismo origen. La demo web sí lo necesita, y llega por env var.
+    origenes-permitidos: ${CORS_ORIGENES:}
+
+  # --- Demo pública ----------------------------------------------------------
+  demo:
+    # Siembra unos meses de gastos al crear un usuario nuevo. Apagado por
+    # defecto: inventarle gastos a alguien que recién instala la app es
+    # exactamente lo que no se quiere. Se activa solo en el deploy de la demo.
+    sembrar: ${DEMO_SEMBRAR:false}
+    # Cuatro y no tres: el promedio histórico pide MÁS de promedio.meses-minimos
+    # meses previos, así que con tres la comparación se vería siempre vacía.
+    meses-historia: 4
 
   # --- Integración con cotización del dólar (RF-38, RF-40) -------------------
   cotizacion:

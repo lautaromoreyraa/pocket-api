@@ -73,21 +73,31 @@ class IngresoControllerTest {
     }
 
     @Test
-    @DisplayName("POST con fecha 15/03 guarda el ingreso con período 01/03")
+    @DisplayName("POST con período \"2026-03\" guarda el ingreso con fecha 01/03")
     void altaNormalizaElPeriodo() throws Exception {
         mockMvc.perform(post("/api/ingresos")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(cuerpo("500000.00", "2026-03-15")))
+                        .content(cuerpo("500000.00", "2026-03")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.periodo").value("2026-03-01"));
     }
 
     @Test
+    @DisplayName("Un período con día se rechaza con 400: el ingreso se carga al mes")
+    void periodoConDiaSeRechaza() throws Exception {
+        mockMvc.perform(post("/api/ingresos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(cuerpo("500000.00", "2026-03-15")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("Varios ingresos en el mismo mes se listan todos")
     void listaTodosLosDelMes() throws Exception {
-        crearIngreso(token, "500000.00", "2026-03-01");
-        crearIngreso(token, "120000.00", "2026-03-20");
+        crearIngreso(token, "500000.00", "2026-03");
+        crearIngreso(token, "120000.00", "2026-03");
 
         mockMvc.perform(get("/api/ingresos?periodo=2026-03")
                         .header("Authorization", "Bearer " + token))
@@ -98,8 +108,8 @@ class IngresoControllerTest {
     @Test
     @DisplayName("totalDelPeriodo suma los ingresos del mes (base de la capacidad de ahorro, RN-06)")
     void totalDelPeriodoSumaLosIngresos() throws Exception {
-        crearIngreso(token, "500000.00", "2026-03-05");
-        crearIngreso(token, "120000.00", "2026-03-25");
+        crearIngreso(token, "500000.00", "2026-03");
+        crearIngreso(token, "120000.00", "2026-03");
 
         BigDecimal total = ingresoRepository.totalDelPeriodo(usuarioId, LocalDate.of(2026, 3, 1));
 
@@ -122,7 +132,7 @@ class IngresoControllerTest {
         String respuesta = mockMvc.perform(post("/api/ingresos")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(cuerpo("500000.00", "2026-03-15")))
+                        .content(cuerpo("500000.00", "2026-03")))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         String idAjeno = respuesta.split("\"id\":\"")[1].split("\"")[0];

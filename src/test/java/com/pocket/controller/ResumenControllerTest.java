@@ -103,6 +103,43 @@ class ResumenControllerTest {
                 .andExpect(status().isCreated());
     }
 
+    /** Crea la plantilla y la registra en el período: deja un `gasto` con origen FIJO. */
+    private void crearGastoFijoRegistrado(Integer categoriaId, String monto, String medioPago,
+                                          int diaDelMes, String periodo) throws Exception {
+        String plantilla = """
+                {
+                  "descripcion": "fijo",
+                  "monto": %s,
+                  "categoriaId": %d,
+                  "medioPago": "%s",
+                  "diaDelMes": %d
+                }
+                """.formatted(monto, categoriaId, medioPago, diaDelMes);
+
+        String creada = mockMvc.perform(post("/api/gastos-fijos")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(plantilla))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String id = objectMapper.readTree(creada).get("id").asText();
+
+        String registro = """
+                {
+                  "periodo": "%s",
+                  "monto": %s,
+                  "idempotencyKey": "%s"
+                }
+                """.formatted(periodo, monto, UUID.randomUUID());
+
+        mockMvc.perform(post("/api/gastos-fijos/" + id + "/registrar")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(registro))
+                .andExpect(status().isCreated());
+    }
+
     private void crearIngreso(String monto, String fecha) throws Exception {
         String cuerpo = """
                 {
@@ -129,7 +166,7 @@ class ResumenControllerTest {
 
     private JsonNode categoria(JsonNode resumen, String nombre) {
         for (JsonNode c : resumen.get("porCategoria")) {
-            if (c.get("nombre").asText().equals(nombre)) return c;
+            if (c.get("categoriaNombre").asText().equals(nombre)) return c;
         }
         throw new AssertionError("No aparece la categoría " + nombre + " en porCategoria: " + resumen.get("porCategoria"));
     }
@@ -150,13 +187,14 @@ class ResumenControllerTest {
         assertThat(categoria(resumen, "Hogar").get("ocurrencias").asLong()).isEqualTo(2);
         assertThat(categoria(resumen, "Hogar").get("hormiga").asBoolean()).isFalse();
 
-        assertThat(resumen.get("hormigas")).hasSize(1);
-        assertThat(resumen.get("hormigas").get(0).get("categoria").asText()).isEqualTo("Delivery/Restaurantes");
-        assertThat(resumen.get("hormigas").get(0).get("variacionVsPromedio").isNull()).isTrue();
+        assertThat(resumen.get("avisoHormiga").get("categoriaNombre").asText())
+                .isEqualTo("Delivery/Restaurantes");
+        assertThat(resumen.get("avisoHormiga").get("ocurrencias").asLong()).isEqualTo(3);
+        assertThat(resumen.get("avisoHormiga").get("porcentajeSobrePromedio").isNull()).isTrue();
     }
 
     @Test
-    @DisplayName("Una compra en cuotas no cuenta para el umbral de hormiga, aunque sume ocurrencias en el gráfico (RN-02)")
+    @DisplayName("Una compra en cuotas suma al total de la categoría pero no a sus ocurrencias (RN-02)")
     void cuotaNoCuentaComoHormiga() throws Exception {
         // La compra deja 1 cuota en marzo (comprada en febrero, imputada al mes siguiente).
         crearCompra(deliveryId, "6000.00", 6, "2026-02-15");
@@ -166,12 +204,39 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", true);
 
-        // El gráfico ve las 3 filas (2 gastos sueltos + 1 cuota): las cuotas cuentan
-        // para el total y el conteo mostrado (RF-23).
-        assertThat(categoria(resumen, "Delivery/Restaurantes").get("ocurrencias").asLong()).isEqualTo(3);
-        // Pero la lista de hormigas (RN-01/RN-02) excluye la cuota: solo 2 ocurrencias
-        // reales, por debajo del umbral (3), así que la categoría no aparece.
-        assertThat(resumen.get("hormigas")).isEmpty();
+        JsonNode delivery = categoria(resumen, "Delivery/Restaurantes");
+
+        // El total incluye la cuota: es plata que salió (RF-23). 1000 + 1200 + 1000
+        // de la primera cuota de la compra de 6000 en 6.
+        assertThat(delivery.get("total").asDouble()).isEqualTo(3200.00);
+
+        // Las ocurrencias, en cambio, cuentan solo lo que puede ser hormiga: los
+        // 2 gastos sueltos. Antes acá viajaba un 3 que incluía la cuota, y eso
+        // hacía que la barra se pintara en rojo con 3 mientras el aviso decía que
+        // no había hormiga: el mismo período contestado de dos formas distintas.
+        assertThat(delivery.get("ocurrencias").asLong()).isEqualTo(2);
+        assertThat(delivery.get("hormiga").asBoolean()).isFalse();
+
+        // 2 ocurrencias reales, por debajo del umbral (3): no hay aviso.
+        assertThat(resumen.get("avisoHormiga").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Un gasto fijo suma al total de la categoría pero tampoco cuenta como hormiga (RN-02)")
+    void fijoNoCuentaComoHormiga() throws Exception {
+        // Tres gastos de la misma categoría en el mes: con el umbral en 3 esto
+        // sería hormiga… salvo que uno de los tres sea un fijo.
+        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2026-03-05");
+        crearGasto(deliveryId, "1200.00", "EFECTIVO", "2026-03-12");
+        crearGastoFijoRegistrado(deliveryId, "3000.00", "DEBITO", 20, "2026-03");
+
+        JsonNode resumen = resumen("2026-03", false);
+        JsonNode delivery = categoria(resumen, "Delivery/Restaurantes");
+
+        assertThat(delivery.get("total").asDouble()).isEqualTo(5200.00);
+        assertThat(delivery.get("ocurrencias").asLong()).isEqualTo(2);
+        assertThat(delivery.get("hormiga").asBoolean()).isFalse();
+        assertThat(resumen.get("avisoHormiga").isNull()).isTrue();
     }
 
     @Test
@@ -192,7 +257,7 @@ class ResumenControllerTest {
     @Test
     @DisplayName("El ahorro es el mismo número en la pestaña débito y en la de crédito")
     void ahorroEsGlobalEnAmbasPestañas() throws Exception {
-        crearIngreso("500000.00", "2026-03-01");
+        crearIngreso("500000.00", "2026-03");
         crearGasto(deliveryId, "100000.00", "EFECTIVO", "2026-03-05");
         crearGasto(deliveryId, "50000.00", "CREDITO", "2026-02-10");
 
@@ -206,15 +271,15 @@ class ResumenControllerTest {
     }
 
     @Test
-    @DisplayName("Sin ingresos cargados, tieneIngresos es false")
-    void sinIngresosTieneIngresosEsFalse() throws Exception {
+    @DisplayName("Sin ingresos cargados, el balance entero viaja en null (RF-33)")
+    void sinIngresosElBalanceEsNull() throws Exception {
         crearGasto(deliveryId, "1000.00", "EFECTIVO", "2026-03-05");
 
         JsonNode resumen = resumen("2026-03", false);
 
-        assertThat(resumen.get("balance").get("tieneIngresos").asBoolean()).isFalse();
-        assertThat(resumen.get("balance").get("capacidadAhorro").decimalValue())
-                .isEqualByComparingTo("-1000.00");
+        // Null y no un -1000 calculado: sin ingreso cargado no hay capacidad de
+        // ahorro que mostrar, y un número igual serviría para pintarla mal.
+        assertThat(resumen.get("balance").isNull()).isTrue();
     }
 
     @Test
@@ -233,8 +298,7 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", false);
 
-        assertThat(resumen.get("balance").get("promedioDisponible").asBoolean()).isFalse();
-        assertThat(resumen.get("balance").get("promedioHistorico").isNull()).isTrue();
+        assertThat(resumen.get("promedioHistorico").isNull()).isTrue();
     }
 
     @Test
@@ -247,16 +311,17 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", false);
 
-        assertThat(resumen.get("balance").get("promedioDisponible").asBoolean()).isTrue();
         // (1000 + 2000 + 0) / 3 meses = 1000.00: febrero cuenta como $0, no se descarta del divisor.
-        assertThat(resumen.get("balance").get("promedioHistorico").decimalValue())
+        assertThat(resumen.get("promedioHistorico").decimalValue())
                 .isEqualByComparingTo("1000.00");
-        // El gasto actual (9999) supera holgadamente el promedio (1000).
-        assertThat(resumen.get("balance").get("superaPromedio").asBoolean()).isTrue();
+        // El gasto actual (9999) supera holgadamente el promedio (1000). La
+        // comparación es del cliente: el backend manda los dos números.
+        assertThat(resumen.get("total").decimalValue())
+                .isGreaterThan(resumen.get("promedioHistorico").decimalValue());
     }
 
     @Test
-    @DisplayName("Un mes que gasta menos que el promedio no marca superaPromedio")
+    @DisplayName("Un mes que gasta menos que el promedio queda por debajo de él")
     void gastoPorDebajoDelPromedioNoSuperaPromedio() throws Exception {
         crearGasto(deliveryId, "3000.00", "EFECTIVO", "2025-12-10");
         crearGasto(deliveryId, "3000.00", "EFECTIVO", "2026-01-15");
@@ -265,8 +330,9 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", false);
 
-        assertThat(resumen.get("balance").get("promedioHistorico").decimalValue())
+        assertThat(resumen.get("promedioHistorico").decimalValue())
                 .isEqualByComparingTo("3000.00");
-        assertThat(resumen.get("balance").get("superaPromedio").asBoolean()).isFalse();
+        assertThat(resumen.get("total").decimalValue())
+                .isLessThan(resumen.get("promedioHistorico").decimalValue());
     }
 }

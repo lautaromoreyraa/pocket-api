@@ -44,6 +44,23 @@ USER pocket
 
 EXPOSE 8080
 
-# Deja que la JVM respete los límites de memoria del contenedor en vez de
-# leer los de la máquina anfitriona.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "/app/app.jar"]
+# Techo de memoria explícito, no un porcentaje del host.
+#
+# En un hosting que factura por RAM consumida, MaxRAMPercentage sale caro por
+# omisión: la JVM toma su parte de lo que vea disponible y el recolector no
+# devuelve lo que ya no usa, así que el proceso se estaciona en el máximo que
+# tocó alguna vez y eso es lo que se paga todos los meses.
+#
+# 256 MB de heap le alcanzan a esta API —los reportes son agregados de SQL, no
+# colecciones grandes en memoria, y el audio más largo (10 MB) cabe varias veces
+# aunque se codifique en base64 para la IA—. SerialGC evita los hilos y las
+# estructuras auxiliares que G1 mantiene, que en un contenedor de un solo core
+# no compensan, y TieredStopAtLevel=1 deja sólo el compilador rápido, que ocupa
+# menos memoria y alcanza para este tráfico.
+#
+# Los flags van en JAVA_TOOL_OPTIONS y no en el ENTRYPOINT: un flag escrito en
+# la línea de comando le gana a la variable, y así el hosting no podría
+# ajustarlos sin un deploy nuevo. Este valor es el piso cuando nadie define la
+# variable; en Railway la define el perfil de recursos del proyecto.
+ENV JAVA_TOOL_OPTIONS="-Xmx256m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -XX:TieredStopAtLevel=1 -Xss512k -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

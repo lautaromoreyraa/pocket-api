@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.YearMonth;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/resumen")
@@ -21,5 +22,11 @@ public class ResumenController {
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo,
             @RequestParam(defaultValue = "false") boolean credito) {
         return ResponseEntity.ok(resumenService.armar(periodo, credito));
+    }
+
+    /** RF-45 — los meses que tienen datos, para el selector del Histórico. */
+    @GetMapping("/periodos")
+    public ResponseEntity<List<YearMonth>> periodos() {
+        return ResponseEntity.ok(resumenService.periodosConDatos());
     }
 }
