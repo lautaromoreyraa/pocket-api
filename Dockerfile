@@ -51,7 +51,16 @@ EXPOSE 8080
 # devuelve lo que ya no usa, así que el proceso se estaciona en el máximo que
 # tocó alguna vez y eso es lo que se paga todos los meses.
 #
-# 320 MB de heap le sobran a esta API —los reportes son agregados de SQL, no
-# colecciones grandes en memoria— y SerialGC evita los hilos y las estructuras
-# auxiliares que G1 mantiene, que en un contenedor de un solo core no compensan.
-ENTRYPOINT ["java", "-Xmx320m", "-XX:MaxMetaspaceSize=128m", "-XX:+UseSerialGC", "-Xss512k", "-jar", "/app/app.jar"]
+# 256 MB de heap le alcanzan a esta API —los reportes son agregados de SQL, no
+# colecciones grandes en memoria, y el audio más largo (10 MB) cabe varias veces
+# aunque se codifique en base64 para la IA—. SerialGC evita los hilos y las
+# estructuras auxiliares que G1 mantiene, que en un contenedor de un solo core
+# no compensan, y TieredStopAtLevel=1 deja sólo el compilador rápido, que ocupa
+# menos memoria y alcanza para este tráfico.
+#
+# Los flags van en JAVA_TOOL_OPTIONS y no en el ENTRYPOINT: un flag escrito en
+# la línea de comando le gana a la variable, y así el hosting no podría
+# ajustarlos sin un deploy nuevo. Este valor es el piso cuando nadie define la
+# variable; en Railway la define el perfil de recursos del proyecto.
+ENV JAVA_TOOL_OPTIONS="-Xmx256m -XX:MaxMetaspaceSize=128m -XX:ReservedCodeCacheSize=64m -XX:TieredStopAtLevel=1 -Xss512k -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
