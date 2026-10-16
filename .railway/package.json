@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "SDK de Railway para evaluar railway.ts; no es parte de la aplicacion",
+  "devDependencies": {
+    "railway": "^3.16.0"
+  }
+}

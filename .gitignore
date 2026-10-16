@@ -170,3 +170,6 @@ HELP.md
 # -----------------------------------------------------------------------------
 *.md
 !README.md
+
+# SDK de Railway para evaluar .railway/railway.ts
+node_modules/
