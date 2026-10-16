@@ -40,7 +40,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Identificación por dispositivo: es el único endpoint abierto (RF-01).
                         .requestMatchers(HttpMethod.POST, "/api/auth/dispositivo").permitAll()
-                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         // El preflight viaja sin Authorization por definición: si
                         // pidiera token, el navegador nunca llegaría a mandar el real.
