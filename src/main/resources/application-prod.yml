@@ -14,15 +14,24 @@ spring:
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
-      maximum-pool-size: 5
-      connection-timeout: 20000
+    # El pool se configura en application.yml y lo ajusta el perfil de
+    # recursos de Railway por variable de entorno.
 
   # ---------------------------------------------------------------------------
   #  JPA — nunca mostrar SQL en producción
   # ---------------------------------------------------------------------------
   jpa:
     show-sql: false
+
+# =============================================================================
+#  ERRORES — el mensaje interno de una excepción no sale a la calle
+#  Puede traer nombres de tablas o fragmentos de SQL. Las respuestas de
+#  validación las arma el manejador global, no el /error de Spring.
+# =============================================================================
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
 
 # =============================================================================
 #  SECRETOS E INTEGRACIONES

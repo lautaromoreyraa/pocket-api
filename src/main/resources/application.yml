@@ -25,18 +25,48 @@ spring:
     import: optional:file:./application-local.properties
 
   # ---------------------------------------------------------------------------
+  #  CONEXIONES — la URL y las credenciales van en cada perfil
+  # ---------------------------------------------------------------------------
+  datasource:
+    hikari:
+      # Techo del perfil bajo; en Railway lo fija el perfil de recursos con
+      # SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE. La MySQL de demos atiende a
+      # cinco APIs y cada conexión ociosa cuenta contra su max_connections: por
+      # eso el mínimo es 1 y no igual al máximo.
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: ${DB_POOL_MIN:1}
+      # Si la base no responde, fallar en 10 s y no colgar el request 30.
+      connection-timeout: 10000
+      # Menor que el wait_timeout de MySQL: Hikari recicla la conexión antes
+      # de que el servidor la corte por su cuenta.
+      max-lifetime: 1800000
+      idle-timeout: 600000
+      keepalive-time: 300000
+
+  # ---------------------------------------------------------------------------
+  #  APAGADO — tope para terminar lo que está en curso
+  # ---------------------------------------------------------------------------
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+  # ---------------------------------------------------------------------------
   #  JPA / HIBERNATE
-  #  ddl-auto en "validate": el esquema lo maneja Flyway, Hibernate solo verifica
-  #  que las entidades coincidan. Nunca "update" en un proyecto serio.
+  #  Flyway es el único dueño del esquema: Hibernate no genera ni valida DDL.
+  #  Lo que no coincida falla en el test de integración, no al arrancar en
+  #  producción. Nunca "update": al renombrar un campo se lleva puesta la tabla.
   # ---------------------------------------------------------------------------
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
     open-in-view: false
     properties:
       hibernate:
         jdbc:
-          time_zone: America/Argentina/Buenos_Aires
+          # UTC, igual que la base. Las fechas de negocio son LocalDate y no se
+          # convierten; el mes en curso lo decide pocket.periodo.zona-horaria.
+          # Medido el 2026-10-16: los Instant ya se guardaban en UTC con
+          # cualquier valor de esta propiedad, así que cambiarla no mueve datos.
+          time_zone: UTC
         format_sql: true
 
   # ---------------------------------------------------------------------------
@@ -45,7 +75,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    # false: la MySQL de Railway es compartida. Si la URL apuntara por error a
+    # la base de otra API, con true Flyway la marcaría como migrada y seguiría
+    # de largo; con false se niega a tocar un esquema que no reconoce.
+    baseline-on-migrate: false
 
   # ---------------------------------------------------------------------------
   #  CARGA DE ARCHIVOS — recepción del audio (RF-04)
@@ -63,6 +96,9 @@ spring:
 # =============================================================================
 server:
   port: ${PORT:8080}
+  # Cada redeploy manda SIGTERM: se terminan los requests en curso antes de
+  # cerrar. Es el default desde Boot 3.4; queda escrito para no depender de eso.
+  shutdown: graceful
   error:
     include-message: always
     include-binding-errors: always
@@ -79,6 +115,10 @@ management:
   endpoint:
     health:
       show-details: never
+      # /actuator/health/liveness y /readiness. Durante el apagado gradual la
+      # readiness pasa a OUT_OF_SERVICE y el balanceador deja de mandar tráfico.
+      probes:
+        enabled: true
 
 # =============================================================================
 #  REGLAS DE NEGOCIO
