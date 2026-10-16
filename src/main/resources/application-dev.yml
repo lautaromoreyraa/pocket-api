@@ -11,7 +11,7 @@ spring:
   #  Se pueden pisar desde application-local.properties.
   # ---------------------------------------------------------------------------
   datasource:
-    url: jdbc:mysql://localhost:3306/pocket?useSSL=false&serverTimezone=America/Argentina/Buenos_Aires&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/pocket?useSSL=false&connectionTimeZone=UTC&allowPublicKeyRetrieval=true
     username: ${DB_USER:pocket}
     password: ${DB_PASSWORD:pocket}
     driver-class-name: com.mysql.cj.jdbc.Driver

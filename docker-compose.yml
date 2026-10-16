@@ -2,7 +2,8 @@
 #  POCKET — entorno local
 #
 #  Las variables salen del archivo .env de esta misma carpeta.
-#  ${VAR:-default} usa el valor por defecto si la variable no existe.
+#  ${VAR:-default} usa el valor por defecto si la variable no existe; sólo se
+#  usa para lo que es de una base descartable de desarrollo.
 #
 #  DÍA A DÍA (solo la base, la app corre con mvnw y tenés recarga en caliente):
 #      docker compose up -d
@@ -22,7 +23,8 @@ services:
   #  Los datos viven en un volumen nombrado, así que sobreviven a down.
   # ---------------------------------------------------------------------------
   mysql:
-    image: mysql:${MYSQL_VERSION:-8.4}
+    # La misma serie que la MySQL compartida de Railway, donde corre producción.
+    image: mysql:${MYSQL_VERSION:-9}
     container_name: ${COMPOSE_PROJECT_NAME:-pocket}-mysql
     restart: unless-stopped
     environment:
@@ -30,13 +32,24 @@ services:
       MYSQL_USER: ${DB_USER:-pocket}
       MYSQL_PASSWORD: ${DB_PASSWORD:-pocket}
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
-      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+      # UTC en la base y en la app, como en Railway. La zona de Argentina es
+      # regla de negocio (pocket.periodo.zona-horaria), no del servidor.
+      TZ: UTC
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
     ports:
-      - "${DB_PORT:-3306}:3306"
+      # Sólo desde esta máquina: Podman publica en todas las interfaces y la
+      # base, con credenciales de desarrollo, quedaría a la vista de la red.
+      - "127.0.0.1:${DB_PORT:-3306}:3306"
     volumes:
       - pocket-mysql-data:/var/lib/mysql
+    # Por TCP (127.0.0.1) y no por socket: durante la inicialización MySQL
+    # levanta un servidor temporal sólo con socket, y un ping a "localhost" lo
+    # da por sano antes de tiempo y Flyway se conecta a una base a medio armar.
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -45,8 +58,6 @@ services:
   # ---------------------------------------------------------------------------
   #  APLICACIÓN
   #  Bajo el perfil "full", así el flujo de desarrollo normal no la levanta.
-  #  Correr la app en contenedor durante el desarrollo cuesta un rebuild
-  #  por cada cambio; con mvnw tenés recarga en caliente.
   # ---------------------------------------------------------------------------
   app:
     build:
@@ -63,18 +74,27 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: prod
-      # Dentro de la red de compose, el host es el nombre del servicio,
-      # no localhost. "mysql" resuelve al contenedor de la base.
-      DATABASE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-pocket}?useSSL=false&serverTimezone=${TZ:-America/Argentina/Buenos_Aires}&allowPublicKeyRetrieval=true
+      # Dentro de la red de compose, el host es el nombre del servicio.
+      # Sin TLS dentro de la red local; allowPublicKeyRetrieval lo exige
+      # caching_sha2_password cuando la conexión va en claro.
+      DATABASE_URL: jdbc:mysql://mysql:3306/${DB_NAME:-pocket}?sslMode=DISABLED&allowPublicKeyRetrieval=true&connectionTimeZone=UTC
       DB_USER: ${DB_USER:-pocket}
       DB_PASSWORD: ${DB_PASSWORD:-pocket}
-      JWT_SECRET: ${JWT_SECRET:-}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      TZ: ${TZ:-America/Argentina/Buenos_Aires}
+      # Los secretos van sin valor a propósito. Así Compose los toma del .env
+      # si están, y si no están quedan SIN DEFINIR, no vacíos: Spring no puede
+      # resolverlos y la app no arranca. `${VAR:-}` los pasaría como cadena
+      # vacía, y `${VAR:?}` rompería también `docker compose up -d` de la base
+      # sola, porque Compose interpola el archivo entero aunque el servicio
+      # esté en un perfil apagado.
+      JWT_SECRET:
+      GEMINI_API_KEY:
+      GROQ_API_KEY:
+      IA_PROVEEDOR: ${IA_PROVEEDOR:-gemini}
+      TZ: UTC
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
