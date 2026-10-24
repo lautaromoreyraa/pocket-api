@@ -47,6 +47,18 @@ RUN groupadd --system --gid 10001 pocket \
  && mkdir -p /app/tmp \
  && chown pocket:pocket /app/tmp
 
+# CVE-2026-91403: las claves de las CA intermedias de eMudhra, que cuelgan de
+# las raíces emSign, quedaron comprometidas, y la JVM aceptaría un certificado
+# falso firmado con ellas en cualquier llamada HTTPS que haga esta API. Hasta
+# que Temurin publique un JDK que las desconfíe, se sacan del almacén de
+# confianza; ningún servicio externo que se usa acá encadena a emSign. El
+# último chequeo rompe el build si quedó alguna.
+RUN keytool -list -cacerts -storepass changeit > /tmp/cacerts.txt \
+ && grep -i emsign /tmp/cacerts.txt | sed 's/, [A-Z][a-z][a-z] [0-9].*//' \
+  | while read -r alias; do keytool -delete -cacerts -storepass changeit -alias "$alias" || exit 1; done \
+ && ! keytool -list -cacerts -storepass changeit | grep -qi emsign \
+ && rm /tmp/cacerts.txt
+
 # Las capas quedan de root: el usuario de la app las lee pero no puede
 # reescribirlas si alguien logra ejecutar código adentro.
 COPY --from=build /build/extraido/dependencies/ ./
