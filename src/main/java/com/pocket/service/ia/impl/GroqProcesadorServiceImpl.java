@@ -3,7 +3,7 @@ package com.pocket.service.ia.impl;
 import java.io.IOException;
 import java.util.List;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.pocket.config.PocketProperties;
 import com.pocket.domain.Categoria;
 import com.pocket.domain.Usuario;

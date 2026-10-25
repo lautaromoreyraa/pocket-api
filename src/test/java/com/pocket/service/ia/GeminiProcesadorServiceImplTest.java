@@ -1,6 +1,6 @@
 package com.pocket.service.ia;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.pocket.config.PocketProperties;
 import com.pocket.domain.Categoria;
 import com.pocket.domain.Usuario;
