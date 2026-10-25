@@ -139,6 +139,17 @@ public class PocketProperties {
          */
         private int limiteDiarioPorUsuario = 0;
 
+        /**
+         * Tope de procesamientos de audio por día, sumando a todos los
+         * usuarios. 0 = sin tope.
+         *
+         * El de usuario no alcanza solo: como el alta es anónima, un script que
+         * crea dispositivos consigue cupos nuevos sin fin. Este pone el techo
+         * por debajo de la cuota gratuita del proveedor, para que nadie la
+         * agote ni despierte la API en Railway a fuerza de audios.
+         */
+        private int limiteDiarioGlobal = 0;
+
         private Groq groq = new Groq();
 
         /**
