@@ -222,6 +222,9 @@ pocket:
     # diarios por modelo, y sin tope el primer visitante entusiasta deja sin
     # audio a todos los que entren después.
     limite-diario-por-usuario: ${IA_LIMITE_DIARIO:0}
+    # Tope de audios por día sumando a todos los usuarios. 0 = sin tope.
+    # El alta es anónima: sin este, crear dispositivos da cupos nuevos sin fin.
+    limite-diario-global: ${IA_LIMITE_DIARIO_GLOBAL:0}
 
     # --- Proveedor alternativo: Groq (solo si pocket.ia.proveedor=groq) ------
     groq:

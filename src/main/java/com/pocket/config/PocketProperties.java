@@ -27,6 +27,7 @@ public class PocketProperties {
     private Cotizacion cotizacion = new Cotizacion();
     private Web web = new Web();
     private Demo demo = new Demo();
+    private Turnstile turnstile = new Turnstile();
 
     /** Detección de gasto hormiga (RN-01, RN-02). */
     @Getter @Setter
@@ -139,6 +140,17 @@ public class PocketProperties {
          */
         private int limiteDiarioPorUsuario = 0;
 
+        /**
+         * Tope de procesamientos de audio por día, sumando a todos los
+         * usuarios. 0 = sin tope.
+         *
+         * El de usuario no alcanza solo: como el alta es anónima, un script que
+         * crea dispositivos consigue cupos nuevos sin fin. Este pone el techo
+         * por debajo de la cuota gratuita del proveedor, para que nadie la
+         * agote ni despierte la API en Railway a fuerza de audios.
+         */
+        private int limiteDiarioGlobal = 0;
+
         private Groq groq = new Groq();
 
         /**
@@ -216,6 +228,20 @@ public class PocketProperties {
          * vería la comparación contra el promedio siempre vacía.
          */
         private int mesesHistoria = 4;
+    }
+
+    /**
+     * Verificación de Cloudflare Turnstile en el alta de dispositivos nuevos.
+     *
+     * Sin secreto queda apagada, que es el caso de desarrollo y de los tests.
+     * La clave del sitio, la pública, no vive acá: la usa el frontend.
+     */
+    @Getter @Setter
+    public static class Turnstile {
+        /** La clave secreta NO va acá. Ver application-prod.yml / env var. */
+        private String secreto;
+        private String url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+        private int timeoutSegundos = 10;
     }
 
     /** Integración con la API del dólar blue (RF-38, RF-40). */

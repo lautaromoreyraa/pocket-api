@@ -40,6 +40,17 @@ public class RestClientConfig {
                 .build();
     }
 
+    /** Cliente para el siteverify de Turnstile, en el alta de dispositivos. */
+    @Bean
+    public RestClient turnstileRestClient(PocketProperties props) {
+        return RestClient.builder()
+                .baseUrl(props.getTurnstile().getUrl())
+                .requestFactory(factory(
+                        props.getTurnstile().getTimeoutSegundos(),
+                        props.getTurnstile().getTimeoutSegundos()))
+                .build();
+    }
+
     /** Cliente para la API de cotización del blue (RF-38). */
     @Bean
     public RestClient cotizacionRestClient(PocketProperties props) {
