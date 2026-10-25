@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.pocket.config.PocketProperties;
 import com.pocket.domain.Usuario;
@@ -41,15 +42,42 @@ public class LimitadorDeAudioEnMemoria implements LimitadorDeAudio {
 
     private final Map<UUID, UsoDiario> usoPorUsuario = new ConcurrentHashMap<>();
 
+    private final AtomicReference<UsoDiario> usoGlobal =
+            new AtomicReference<>(new UsoDiario(LocalDate.MIN, new AtomicInteger()));
+
     @Override
     public void registrarUso(Usuario usuario) {
         int limite = props.getIa().getLimiteDiarioPorUsuario();
-        if (limite <= 0) {
+        int limiteGlobal = props.getIa().getLimiteDiarioGlobal();
+        if (limite <= 0 && limiteGlobal <= 0) {
             // Uso normal de la app: no hay cupo que administrar.
             return;
         }
 
         LocalDate hoy = LocalDate.now(ZoneId.of(props.getPeriodo().getZonaHoraria()));
+
+        // El del usuario va primero: quien ya agotó el suyo no tiene que
+        // descontarle nada al cupo de todos los demás.
+        AtomicInteger delUsuario = null;
+        if (limite > 0) {
+            delUsuario = consumirDelUsuario(usuario, hoy, limite);
+        }
+
+        if (limiteGlobal > 0 && !consumirGlobal(hoy, limiteGlobal)) {
+            // El audio no llega al proveedor, así que al usuario no se le
+            // cobra: si el tope global se levanta (otro día, otro valor), su
+            // cupo tiene que estar intacto.
+            if (delUsuario != null) {
+                delUsuario.decrementAndGet();
+            }
+            log.warn("Se alcanzó el cupo diario global de audios ({})", limiteGlobal);
+            throw new LimiteDeAudioAlcanzadoException(
+                    "La demo ya procesó todos los audios que puede por hoy. "
+                            + "Podés seguir cargando gastos a mano.");
+        }
+    }
+
+    private AtomicInteger consumirDelUsuario(Usuario usuario, LocalDate hoy, int limite) {
         purgarSiHaceFalta(hoy);
 
         UsoDiario uso = usoPorUsuario.compute(usuario.getId(), (id, actual) ->
@@ -64,6 +92,30 @@ public class LimitadorDeAudioEnMemoria implements LimitadorDeAudio {
                     "Alcanzaste el límite de " + limite + " audios por día de la demo. "
                             + "Podés seguir cargando gastos a mano.");
         }
+        return uso.contador();
+    }
+
+    /**
+     * El tope por usuario solo no alcanza: el alta es anónima, así que con
+     * crear dispositivos nuevos se consiguen cupos nuevos sin límite. Este es
+     * el que de verdad protege la cuota externa.
+     *
+     * A diferencia del de usuario, el rechazo no suma: se descuenta solo si
+     * hay lugar, para que insistir con la demo agotada no deje el contador
+     * por encima del tope.
+     */
+    private boolean consumirGlobal(LocalDate hoy, int limiteGlobal) {
+        UsoDiario uso = usoGlobal.updateAndGet(actual ->
+                actual.dia().equals(hoy) ? actual : new UsoDiario(hoy, new AtomicInteger()));
+        AtomicInteger contador = uso.contador();
+        int consumidos;
+        do {
+            consumidos = contador.get();
+            if (consumidos >= limiteGlobal) {
+                return false;
+            }
+        } while (!contador.compareAndSet(consumidos, consumidos + 1));
+        return true;
     }
 
     /**

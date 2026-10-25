@@ -78,6 +78,66 @@ class LimitadorDeAudioEnMemoriaTest {
         }
     }
 
+    @Test
+    @DisplayName("El cupo global corta aunque cada usuario sea nuevo")
+    void elCupoGlobalCortaAunqueSeanUsuariosNuevos() {
+        props.getIa().setLimiteDiarioPorUsuario(3);
+        props.getIa().setLimiteDiarioGlobal(2);
+
+        // Así se esquivaba el tope por usuario: un dispositivo nuevo por audio.
+        limitador.registrarUso(usuarioNuevo());
+        limitador.registrarUso(usuarioNuevo());
+
+        assertThatThrownBy(() -> limitador.registrarUso(usuarioNuevo()))
+                .isInstanceOf(LimiteDeAudioAlcanzadoException.class)
+                .hasMessageContaining("todos los audios");
+    }
+
+    @Test
+    @DisplayName("El cupo global funciona solo, sin tope por usuario")
+    void elCupoGlobalFuncionaSinTopePorUsuario() {
+        props.getIa().setLimiteDiarioGlobal(1);
+
+        limitador.registrarUso(usuario);
+
+        assertThatThrownBy(() -> limitador.registrarUso(otro))
+                .isInstanceOf(LimiteDeAudioAlcanzadoException.class);
+    }
+
+    @Test
+    @DisplayName("Un rechazo del cupo global no le gasta el cupo al usuario")
+    void elRechazoGlobalNoGastaElCupoDelUsuario() {
+        props.getIa().setLimiteDiarioPorUsuario(2);
+        props.getIa().setLimiteDiarioGlobal(1);
+
+        limitador.registrarUso(otro);
+        assertThatThrownBy(() -> limitador.registrarUso(usuario))
+                .isInstanceOf(LimiteDeAudioAlcanzadoException.class);
+
+        // Con más lugar en el global, el usuario conserva sus dos audios.
+        props.getIa().setLimiteDiarioGlobal(10);
+        limitador.registrarUso(usuario);
+        limitador.registrarUso(usuario);
+        assertThatThrownBy(() -> limitador.registrarUso(usuario))
+                .isInstanceOf(LimiteDeAudioAlcanzadoException.class)
+                .hasMessageContaining("2 audios");
+    }
+
+    @Test
+    @DisplayName("Quien ya agotó su cupo no le descuenta nada al global")
+    void elRechazoPorUsuarioNoGastaElGlobal() {
+        props.getIa().setLimiteDiarioPorUsuario(1);
+        props.getIa().setLimiteDiarioGlobal(2);
+
+        limitador.registrarUso(usuario);
+        for (int i = 0; i < 5; i++) {
+            assertThatThrownBy(() -> limitador.registrarUso(usuario))
+                    .isInstanceOf(LimiteDeAudioAlcanzadoException.class);
+        }
+
+        assertThatCode(() -> limitador.registrarUso(otro)).doesNotThrowAnyException();
+    }
+
     private static Usuario usuarioNuevo() {
         return Usuario.builder().id(UUID.randomUUID()).deviceUuid("dev-" + UUID.randomUUID()).build();
     }
