@@ -43,6 +43,10 @@ pocket:
       secret: ${JWT_SECRET}
   ia:
     api-key: ${GEMINI_API_KEY}
+  # Sin default: en producción, una variable olvidada no puede dejar el alta
+  # sin verificar.
+  turnstile:
+    secreto: ${TURNSTILE_SECRETO}
 
 # =============================================================================
 #  LOGGING — solo lo necesario

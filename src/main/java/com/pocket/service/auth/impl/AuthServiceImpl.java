@@ -8,6 +8,7 @@ import com.pocket.repository.UsuarioRepository;
 import com.pocket.security.jwt.JwtService;
 import com.pocket.event.UsuarioCreado;
 import com.pocket.service.auth.AuthService;
+import com.pocket.service.auth.VerificadorDeHumano;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,12 +24,19 @@ public class AuthServiceImpl implements AuthService {
     private final UsuarioRepository usuarioRepository;
     private final JwtService jwtService;
     private final ApplicationEventPublisher eventos;
+    private final VerificadorDeHumano verificadorDeHumano;
 
     @Override
     @Transactional
     public TokenResponse identificar(DispositivoRequest request) {
         Usuario usuario = usuarioRepository.findByDeviceUuid(request.deviceUuid())
-                .orElseGet(() -> crear(request.deviceUuid()));
+                .orElseGet(() -> {
+                    // La app pide el alta cada vez que abre, así que se verifica
+                    // solo el dispositivo nuevo, que es lo único que cuesta: un
+                    // usuario y un cupo de audio más.
+                    verificadorDeHumano.verificar(request.turnstileToken());
+                    return crear(request.deviceUuid());
+                });
 
         String token = jwtService.generar(usuario);
         return TokenResponse.de(token, usuario.tieneCuentaVinculada());

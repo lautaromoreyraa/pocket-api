@@ -27,6 +27,7 @@ public class PocketProperties {
     private Cotizacion cotizacion = new Cotizacion();
     private Web web = new Web();
     private Demo demo = new Demo();
+    private Turnstile turnstile = new Turnstile();
 
     /** Detección de gasto hormiga (RN-01, RN-02). */
     @Getter @Setter
@@ -227,6 +228,20 @@ public class PocketProperties {
          * vería la comparación contra el promedio siempre vacía.
          */
         private int mesesHistoria = 4;
+    }
+
+    /**
+     * Verificación de Cloudflare Turnstile en el alta de dispositivos nuevos.
+     *
+     * Sin secreto queda apagada, que es el caso de desarrollo y de los tests.
+     * La clave del sitio, la pública, no vive acá: la usa el frontend.
+     */
+    @Getter @Setter
+    public static class Turnstile {
+        /** La clave secreta NO va acá. Ver application-prod.yml / env var. */
+        private String secreto;
+        private String url = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+        private int timeoutSegundos = 10;
     }
 
     /** Integración con la API del dólar blue (RF-38, RF-40). */

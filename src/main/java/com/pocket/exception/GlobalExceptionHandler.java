@@ -34,6 +34,12 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(429, "Límite alcanzado", e.getMessage()));
     }
 
+    @ExceptionHandler(VerificacionHumanaFallidaException.class)
+    public ResponseEntity<ErrorResponse> verificacionHumana(VerificacionHumanaFallidaException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.de(403, "Verificación fallida", e.getMessage()));
+    }
+
     @ExceptionHandler(NoAutenticadoException.class)
     public ResponseEntity<ErrorResponse> noAutenticado(NoAutenticadoException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
