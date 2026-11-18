@@ -9,7 +9,6 @@ import java.util.UUID;
 
 public record GastoRequest(
 
-        /** Generada por el cliente. Evita duplicados al reintentar (RF-41). */
         @NotNull(message = "La clave de idempotencia es obligatoria")
         UUID idempotencyKey,
 

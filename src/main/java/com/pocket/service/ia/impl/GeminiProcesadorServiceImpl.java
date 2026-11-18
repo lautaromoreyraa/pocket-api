@@ -47,11 +47,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-// Es el proveedor por defecto: si la property no está, sigue siendo este.
 @ConditionalOnProperty(name = "pocket.ia.proveedor", havingValue = "gemini", matchIfMissing = true)
 public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
 
-    /** `"retryDelay": "35s"` dentro del RetryInfo que Gemini manda en el 429. */
     private final RestClient iaRestClient;
     private final PocketProperties props;
     private final CategoriaRepository categoriaRepository;
@@ -68,12 +66,6 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
         GeminiResponse respuesta = llamarApi(prompt, base64Audio, audio.getContentType());
         RespuestaModeloIA modelo = parsear(extraerTexto(respuesta));
 
-        // La transcripción sale del mismo modelo que detectó los gastos: es lo
-        // mejor que se puede hacer con un proveedor multimodal, y por eso el
-        // control de coherencia que corre después importa tanto acá.
-        //
-        // El audio no se guarda en ningún momento (RNF-02): solo vivió en
-        // memoria durante este método, como bytes y luego como base64.
         return armadorDeGastos.armar(modelo, modelo.transcripcion(), categorias);
     }
 
@@ -90,9 +82,6 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
         GeminiRequest.Part audioParte =
                 new GeminiRequest.Part(null, new GeminiRequest.InlineData(mimeType, base64Audio));
         GeminiRequest.Content contenido = new GeminiRequest.Content(List.of(textoParte, audioParte));
-        // Pedimos JSON puro también a nivel de API, además de limpiar
-        // backticks a mano: doble resguardo contra que el modelo envuelva
-        // la respuesta en markdown.
         GeminiRequest.GenerationConfig config = new GeminiRequest.GenerationConfig("application/json");
         GeminiRequest body = new GeminiRequest(List.of(contenido), config);
 
@@ -109,13 +98,6 @@ public class GeminiProcesadorServiceImpl implements ProcesadorIAService {
                 .body(GeminiResponse.class));
     }
 
-    /**
-     * Reintenta con backoff exponencial mientras la falla sea transitoria.
-     *
-     * Gemini devuelve 503 ("high demand") y 429 seguido, y el tiempo de
-     * respuesta del mismo audio varía entre 9s y 30s: un solo intento convierte
-     * cualquiera de esas dos cosas en un error para el usuario.
-     */
     private String extraerTexto(GeminiResponse respuesta) {
         String texto = respuesta == null || respuesta.candidates() == null || respuesta.candidates().isEmpty()
                 ? null

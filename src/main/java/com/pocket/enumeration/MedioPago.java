@@ -7,7 +7,6 @@ public enum MedioPago {
     DEBITO,
     CREDITO;
 
-    /** Todo gasto con crédito va a la pestaña de crédito, tenga 1 cuota o 30 (RF-18). */
     public boolean esCredito() {
         return this == CREDITO;
     }

@@ -46,7 +46,6 @@ class ResumenControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // @Transactional revierte cada test, así que solo hace falta sembrar lo propio.
         deliveryId = categoriaRepository.save(Categoria.builder()
                 .nombre("Delivery/Restaurantes").icono("food").color("#111111").orden(1).build()).getId();
         hogarId = categoriaRepository.save(Categoria.builder()
@@ -103,7 +102,6 @@ class ResumenControllerTest {
                 .andExpect(status().isCreated());
     }
 
-    /** Crea la plantilla y la registra en el período: deja un `gasto` con origen FIJO. */
     private void crearGastoFijoRegistrado(Integer categoriaId, String monto, String medioPago,
                                           int diaDelMes, String periodo) throws Exception {
         String plantilla = """
@@ -196,9 +194,7 @@ class ResumenControllerTest {
     @Test
     @DisplayName("Una compra en cuotas suma al total de la categoría pero no a sus ocurrencias (RN-02)")
     void cuotaNoCuentaComoHormiga() throws Exception {
-        // La compra deja 1 cuota en marzo (comprada en febrero, imputada al mes siguiente).
         crearCompra(deliveryId, "6000.00", 6, "2026-02-15");
-        // Dos gastos de crédito sueltos (no son cuotas) en la misma categoría y mes.
         crearGasto(deliveryId, "1000.00", "CREDITO", "2026-02-20");
         crearGasto(deliveryId, "1200.00", "CREDITO", "2026-02-25");
 
@@ -206,26 +202,17 @@ class ResumenControllerTest {
 
         JsonNode delivery = categoria(resumen, "Delivery/Restaurantes");
 
-        // El total incluye la cuota: es plata que salió (RF-23). 1000 + 1200 + 1000
-        // de la primera cuota de la compra de 6000 en 6.
         assertThat(delivery.get("total").asDouble()).isEqualTo(3200.00);
 
-        // Las ocurrencias, en cambio, cuentan solo lo que puede ser hormiga: los
-        // 2 gastos sueltos. Antes acá viajaba un 3 que incluía la cuota, y eso
-        // hacía que la barra se pintara en rojo con 3 mientras el aviso decía que
-        // no había hormiga: el mismo período contestado de dos formas distintas.
         assertThat(delivery.get("ocurrencias").asLong()).isEqualTo(2);
         assertThat(delivery.get("hormiga").asBoolean()).isFalse();
 
-        // 2 ocurrencias reales, por debajo del umbral (3): no hay aviso.
         assertThat(resumen.get("avisoHormiga").isNull()).isTrue();
     }
 
     @Test
     @DisplayName("Un gasto fijo suma al total de la categoría pero tampoco cuenta como hormiga (RN-02)")
     void fijoNoCuentaComoHormiga() throws Exception {
-        // Tres gastos de la misma categoría en el mes: con el umbral en 3 esto
-        // sería hormiga… salvo que uno de los tres sea un fijo.
         crearGasto(deliveryId, "1000.00", "EFECTIVO", "2026-03-05");
         crearGasto(deliveryId, "1200.00", "EFECTIVO", "2026-03-12");
         crearGastoFijoRegistrado(deliveryId, "3000.00", "DEBITO", 20, "2026-03");
@@ -277,8 +264,6 @@ class ResumenControllerTest {
 
         JsonNode resumen = resumen("2026-03", false);
 
-        // Null y no un -1000 calculado: sin ingreso cargado no hay capacidad de
-        // ahorro que mostrar, y un número igual serviría para pintarla mal.
         assertThat(resumen.get("balance").isNull()).isTrue();
     }
 
@@ -304,18 +289,14 @@ class ResumenControllerTest {
     @Test
     @DisplayName("Con 4 meses de historia, el promedio es el de los 3 anteriores y los meses vacíos no lo distorsionan")
     void promedioDeLosTresMesesAnterioresSinContarElActual() throws Exception {
-        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2025-12-10"); // diciembre: 1000
-        crearGasto(deliveryId, "2000.00", "EFECTIVO", "2026-01-15"); // enero: 2000
-        // febrero queda sin gastos: un mes vacío dentro de la ventana.
-        crearGasto(deliveryId, "9999.00", "EFECTIVO", "2026-03-05"); // marzo (actual): no entra en el promedio
+        crearGasto(deliveryId, "1000.00", "EFECTIVO", "2025-12-10");
+        crearGasto(deliveryId, "2000.00", "EFECTIVO", "2026-01-15");
+        crearGasto(deliveryId, "9999.00", "EFECTIVO", "2026-03-05");
 
         JsonNode resumen = resumen("2026-03", false);
 
-        // (1000 + 2000 + 0) / 3 meses = 1000.00: febrero cuenta como $0, no se descarta del divisor.
         assertThat(resumen.get("promedioHistorico").decimalValue())
                 .isEqualByComparingTo("1000.00");
-        // El gasto actual (9999) supera holgadamente el promedio (1000). La
-        // comparación es del cliente: el backend manda los dos números.
         assertThat(resumen.get("total").decimalValue())
                 .isGreaterThan(resumen.get("promedioHistorico").decimalValue());
     }

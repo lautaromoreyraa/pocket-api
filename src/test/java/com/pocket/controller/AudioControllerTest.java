@@ -39,7 +39,6 @@ class AudioControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private CategoriaRepository categoriaRepository;
 
-    // Reemplaza el RestClient real de la app: nunca le pegamos a Gemini de verdad.
     @MockitoBean
     @Qualifier("iaRestClient")
     private RestClient iaRestClient;
@@ -64,8 +63,6 @@ class AudioControllerTest {
         when(iaRestClient.post()).thenReturn(bodyUriSpec);
         when(bodyUriSpec.uri(anyString())).thenReturn(bodySpec);
         when(bodySpec.contentType(any())).thenReturn(bodySpec);
-        // any(Object.class), no any(): body() está sobrecargado y any() sin
-        // tipo resuelve contra la sobrecarga más específica, no la real.
         when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
         when(bodySpec.retrieve()).thenReturn(responseSpec);
 

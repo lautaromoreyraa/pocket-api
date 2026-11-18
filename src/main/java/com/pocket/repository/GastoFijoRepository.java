@@ -10,13 +10,6 @@ import java.util.UUID;
 
 public interface GastoFijoRepository extends JpaRepository<GastoFijo, UUID> {
 
-    /**
-     * Las plantillas del usuario, activas y pausadas: la pantalla muestra las
-     * dos cosas, en secciones distintas.
-     *
-     * El orden es por día del mes porque la pregunta que responde la pantalla es
-     * "qué me falta pagar", y eso se lee en orden de vencimiento.
-     */
     @Query("""
         SELECT f FROM GastoFijo f
         JOIN FETCH f.categoria

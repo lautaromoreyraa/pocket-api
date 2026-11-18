@@ -31,7 +31,6 @@ public class Ingreso {
 
     private String descripcion;
 
-    /** Primer día del mes al que corresponde el ingreso. */
     @Column(nullable = false)
     private LocalDate periodo;
 

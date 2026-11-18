@@ -33,7 +33,6 @@ public class Usuario {
     @Column(name = "fecha_alta", nullable = false, updatable = false)
     private Instant fechaAlta;
 
-    /** Un usuario está vinculado cuando completó el registro con email (RF-03). */
     public boolean tieneCuentaVinculada() {
         return email != null;
     }

@@ -13,8 +13,6 @@ public interface CompraFinanciadaService {
 
     CompraFinanciadaResponse registrar(CompraFinanciadaRequest request);
 
-    /** Cambia categoría y descripción, propagando a todas las cuotas.
-     *  No toca montos, cantidad de cuotas ni fechas. */
     CompraFinanciadaResponse editar(UUID id, CompraEdicionRequest request);
 
     void eliminar(UUID id);

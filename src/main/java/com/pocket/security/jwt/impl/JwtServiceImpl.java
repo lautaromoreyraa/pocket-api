@@ -17,10 +17,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.UUID;
 
-/**
- * El secreto de firma llega desde application-local.properties en desarrollo
- * y desde una variable de entorno en producción. Nunca se commitea.
- */
 @Service
 public class JwtServiceImpl implements JwtService {
 

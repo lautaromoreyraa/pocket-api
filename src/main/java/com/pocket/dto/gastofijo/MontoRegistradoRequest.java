@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
-/** PUT /api/gastos-fijos/{id}/registro?periodo= — corregir cuánto se pagó este mes. */
 public record MontoRegistradoRequest(
 
         @NotNull(message = "El monto es obligatorio")

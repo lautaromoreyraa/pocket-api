@@ -14,14 +14,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-/**
- * Verificación con Cloudflare Turnstile.
- *
- * Sin clave secreta queda apagada: en desarrollo y en los tests no hay widget
- * que resolver. En producción la clave es obligatoria (ver application-prod.yml),
- * así que olvidarse de cargarla impide arrancar en vez de apagar la protección
- * sin que nadie se entere.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -55,8 +47,6 @@ public class VerificadorDeHumanoTurnstile implements VerificadorDeHumano {
                     .retrieve()
                     .body(RespuestaDeTurnstile.class);
         } catch (RestClientException e) {
-            // Se cierra ante la duda: dejar pasar cuando Cloudflare no contesta
-            // sería reabrir el alta en serie justo cuando nadie lo mira.
             log.warn("Turnstile no respondió: {}", e.getMessage());
             throw new VerificacionHumanaFallidaException(MENSAJE);
         }

@@ -38,8 +38,6 @@ class GastoFijoControllerTest {
 
     private String token;
     private String periodo;
-    /** Los ids de categoría no se hardcodean: cada test siembra la suya y
-     *  @Transactional la revierte al terminar. */
     private Integer servicios;
 
     @BeforeEach
@@ -50,7 +48,6 @@ class GastoFijoControllerTest {
         periodo = YearMonth.now().toString();
     }
 
-    // --- ABM -----------------------------------------------------------------
 
     @Test
     @DisplayName("POST crea la plantilla y la devuelve con la categoría resuelta")
@@ -69,8 +66,6 @@ class GastoFijoControllerTest {
     @Test
     @DisplayName("El alta ignora un `activo` en false: pausado es una acción posterior")
     void altaSiempreNaceActiva() throws Exception {
-        // El frontend directamente no manda el campo; que el default sea activo
-        // es lo que hace que no haga falta.
         mockMvc.perform(post("/api/gastos-fijos")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -163,7 +158,6 @@ class GastoFijoControllerTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // --- El resumen y el tilde -----------------------------------------------
 
     @Test
     @DisplayName("El resumen arranca con todo sin tildar y el estimado en el monto de las plantillas")
@@ -191,7 +185,6 @@ class GastoFijoControllerTest {
 
         assertThat(resumen.get("items").get(0).get("gastoId").isNull()).isFalse();
         assertThat(resumen.get("items").get(0).get("montoRegistrado").asDouble()).isEqualTo(52300.00);
-        // La plantilla no se toca: sigue diciendo lo que se espera pagar.
         assertThat(resumen.get("items").get(0).get("fijo").get("monto").asDouble()).isEqualTo(45000.00);
         assertThat(resumen.get("totalEstimado").asDouble()).isEqualTo(52300.00);
         assertThat(resumen.get("totalRegistrado").asDouble()).isEqualTo(52300.00);
@@ -205,7 +198,6 @@ class GastoFijoControllerTest {
 
         String gastoId = resumen(periodo).get("items").get(0).get("gastoId").asText();
 
-        // No hay endpoint propio para destildar: el tilde ES el gasto.
         mockMvc.perform(delete("/api/gastos/" + gastoId)
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isNoContent());
@@ -292,10 +284,8 @@ class GastoFijoControllerTest {
         String id = crearFijo("Netflix", "12400.00", "CREDITO", 15);
         registrar(id, periodo, "12400.00");
 
-        // Se tilda en el mes en que se paga…
         assertThat(resumen(periodo).get("items").get(0).get("gastoId").isNull()).isFalse();
 
-        // …pero la plata se imputa al mes siguiente, y en la pestaña de crédito.
         String siguiente = YearMonth.now().plusMonths(1).toString();
         mockMvc.perform(get("/api/gastos?periodo=" + siguiente + "&credito=true")
                         .header("Authorization", "Bearer " + token))
@@ -307,7 +297,6 @@ class GastoFijoControllerTest {
                 .andExpect(jsonPath("$.length()").value(0));
     }
 
-    // --- Helpers -------------------------------------------------------------
 
     private String obtenerToken(String deviceUuid) throws Exception {
         String respuesta = mockMvc.perform(post("/api/auth/dispositivo")

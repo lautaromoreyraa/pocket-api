@@ -35,7 +35,6 @@ public class IngresoServiceImpl implements IngresoService {
                 .usuario(usuario)
                 .monto(request.monto())
                 .descripcion(request.descripcion())
-                // El período llega como mes; en base se guarda como el día 1.
                 .periodo(PeriodoUtil.primerDia(request.periodo()))
                 .build();
 
@@ -56,7 +55,6 @@ public class IngresoServiceImpl implements IngresoService {
     public void eliminar(UUID id) {
         Ingreso ingreso = ingresoRepository.findById(id)
                 .orElseThrow(() -> new IngresoNoEncontradoException(id));
-        // Ingreso ajeno = inexistente: un 403 confirmaría que ese id existe.
         if (!ingreso.getUsuario().getId().equals(authService.actual().getId())) {
             throw new IngresoNoEncontradoException(id);
         }

@@ -22,12 +22,6 @@ public class AudioServiceImpl implements AudioService {
 
     private static final String PREFIJO_CONTENT_TYPE_AUDIO = "audio/";
 
-    /**
-     * Content types que, sin ser "audio/*", igual llegan de clientes reales
-     * mandando audio: curl y Expo suelen mandar .m4a como
-     * application/octet-stream, y a veces como video/mp4 (el contenedor MP4
-     * también se usa para audio-only).
-     */
     private static final List<String> CONTENT_TYPES_AUDIO_PLAUSIBLES =
             List.of("application/octet-stream", "video/mp4");
 
@@ -51,23 +45,13 @@ public class AudioServiceImpl implements AudioService {
             throw new ArchivoInvalidoException("El archivo debe ser de tipo audio");
         }
 
-        // No persiste: el alta ocurre recién cuando el usuario confirma (RF-08).
         Usuario usuario = authService.actual();
 
-        // El cupo se descuenta antes de llamar al proveedor, no después de que
-        // conteste bien: una respuesta que termina en 422 o en 502 igual gastó
-        // la cuota externa, que es justamente lo que este tope protege.
         limitador.registrarUso(usuario);
 
         return procesadorIA.extraerGastos(audio, usuario);
     }
 
-    /**
-     * El content-type solo no alcanza: varios clientes (curl, Expo) mandan
-     * audio real bajo "application/octet-stream" o "video/mp4". Si el
-     * content-type no es concluyente, la extensión del nombre de archivo
-     * desempata. Se rechaza solo si ninguna de las dos señales es plausible.
-     */
     private boolean esAudioPlausible(String contentType, String nombreArchivo) {
         if (contentType != null) {
             String tipoNormalizado = contentType.toLowerCase(Locale.ROOT);

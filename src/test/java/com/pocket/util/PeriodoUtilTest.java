@@ -59,8 +59,6 @@ class PeriodoUtilTest {
     @Test
     @DisplayName("ventanaPromedio: se acota a los meses reales de historia, no a la ventana configurada")
     void ventanaPromedioAcotadaPorLaHistoria() {
-        // Primer gasto en diciembre 2025: solo 3 meses previos a marzo 2026,
-        // aunque la ventana configurada sea de 12.
         List<YearMonth> ventana = PeriodoUtil.ventanaPromedio(
                 YearMonth.of(2026, 3), YearMonth.of(2025, 12), 12);
 
@@ -71,7 +69,6 @@ class PeriodoUtilTest {
     @Test
     @DisplayName("ventanaPromedio: se acota a la ventana configurada aunque haya mas historia")
     void ventanaPromedioAcotadaPorLaVentana() {
-        // Un año de historia, pero la ventana configurada es de 3 meses.
         List<YearMonth> ventana = PeriodoUtil.ventanaPromedio(
                 YearMonth.of(2026, 3), YearMonth.of(2020, 1), 3);
 

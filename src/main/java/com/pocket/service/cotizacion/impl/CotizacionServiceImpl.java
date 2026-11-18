@@ -43,9 +43,6 @@ public class CotizacionServiceImpl implements CotizacionService {
                         "No hay cotización del dólar blue disponible: la API no respondió "
                                 + "y no hay ninguna guardada");
             }
-            // desdeCache sale directo del resultado del refresh, no de comparar filas:
-            // con la fila única (sin historial), esa comparación sería frágil ante
-            // dos requests concurrentes disparando el refresh al mismo tiempo.
             return cotizacionMapper.aResponse(guardada.get(), !refrescoOk);
         }
 
@@ -59,20 +56,6 @@ public class CotizacionServiceImpl implements CotizacionService {
         intentarRefrescar();
     }
 
-    /**
-     * Pide la cotización a la API y la guarda. Nunca propaga: es el método
-     * que corre tanto desde el @Scheduled (una excepción ahí ensuciaría los
-     * logs cada 30 minutos sin que nadie se entere) como desde obtenerBlue()
-     * cuando la guardada está vencida.
-     *
-     * Guarda siempre en la MISMA fila (actualiza si ya hay una, inserta si
-     * no): solo interesa el último valor, no un histórico de cotizaciones.
-     *
-     * Sin @Transactional acá a propósito: en un método privado la anotación
-     * no tendría efecto (Spring no proxea llamadas privadas/self-invocadas).
-     * El find y el save ya son atómicos cada uno por su cuenta vía
-     * SimpleJpaRepository, que alcanza para este caso.
-     */
     private boolean intentarRefrescar() {
         try {
             CotizacionApiResponse body = cotizacionRestClient.get()
