@@ -1,6 +1,6 @@
 
 
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM maven:3.9.16-eclipse-temurin-21 AS build
 
 WORKDIR /build
 
@@ -14,7 +14,7 @@ RUN cp target/*.jar app.jar \
  && java -Djarmode=tools -jar app.jar extract --layers --destination extraido
 
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21.0.13_9-jre
 
 WORKDIR /app
 
