@@ -47,22 +47,12 @@ public class GastoFijoController {
         return ResponseEntity.noContent().build();
     }
 
-    /** El estado de cada plantilla dentro del período: qué está tildado y qué no. */
     @GetMapping("/resumen")
     public ResponseEntity<ResumenFijosResponse> resumen(
             @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth periodo) {
         return ResponseEntity.ok(gastoFijoService.resumenDelPeriodo(periodo));
     }
 
-    /**
-     * Tilda el fijo del mes: lo materializa como un `gasto` real.
-     *
-     * No hay endpoint para <b>destildar</b>, y la asimetría es a propósito: el
-     * tilde es la existencia del gasto, así que borrarlo ya lo resuelve
-     * DELETE /api/gastos/{id} con el `gastoId` que viene en el resumen. Es
-     * además el mismo camino por el que el usuario puede borrarlo desde la
-     * pantalla de movimientos, así que tener dos no agregaría nada.
-     */
     @PostMapping("/{id}/registrar")
     public ResponseEntity<GastoResponse> registrarDelPeriodo(
             @PathVariable UUID id, @Valid @RequestBody RegistroFijoRequest request) {
@@ -70,7 +60,6 @@ public class GastoFijoController {
                 .body(gastoFijoService.registrarDelPeriodo(id, request));
     }
 
-    /** Corrige cuánto se pagó este mes, sin tocar el resto del gasto. */
     @PutMapping("/{id}/registro")
     public ResponseEntity<GastoResponse> editarMontoDelPeriodo(
             @PathVariable UUID id,

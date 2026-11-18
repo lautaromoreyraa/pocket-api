@@ -62,7 +62,6 @@ class GastoServiceImplTest {
                 .id(1).nombre("Supermercado").icono("cart").color("#000").orden(1).build();
         lenient().when(authService.actual()).thenReturn(usuario);
         lenient().when(categoriaRepository.findById(1)).thenReturn(Optional.of(categoria));
-        // save devuelve el mismo gasto con un id asignado, como haría la base.
         lenient().when(gastoRepository.save(any(Gasto.class))).thenAnswer(inv -> {
             Gasto g = inv.getArgument(0);
             if (g.getId() == null) g.setId(UUID.randomUUID());
@@ -205,7 +204,6 @@ class GastoServiceImplTest {
                 usuario.getId(), LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31), false);
     }
 
-    // --- helpers -----------------------------------------------------------
 
     private Gasto guardado() {
         ArgumentCaptor<Gasto> captor = ArgumentCaptor.forClass(Gasto.class);

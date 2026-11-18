@@ -31,9 +31,6 @@ public class AuthServiceImpl implements AuthService {
     public TokenResponse identificar(DispositivoRequest request) {
         Usuario usuario = usuarioRepository.findByDeviceUuid(request.deviceUuid())
                 .orElseGet(() -> {
-                    // La app pide el alta cada vez que abre, así que se verifica
-                    // solo el dispositivo nuevo, que es lo único que cuesta: un
-                    // usuario y un cupo de audio más.
                     verificadorDeHumano.verificar(request.turnstileToken());
                     return crear(request.deviceUuid());
                 });
@@ -42,22 +39,12 @@ public class AuthServiceImpl implements AuthService {
         return TokenResponse.de(token, usuario.tieneCuentaVinculada());
     }
 
-    /**
-     * Alta del usuario nuevo. Si dos requests con el mismo deviceUuid corren en
-     * paralelo, el UNIQUE de la tabla hace fallar al segundo con
-     * DataIntegrityViolationException: en ese caso el usuario ya existe, así que
-     * lo recuperamos en vez de propagar el error.
-     */
     private Usuario crear(String deviceUuid) {
         try {
             Usuario nuevo = usuarioRepository.save(Usuario.builder()
                     .deviceUuid(deviceUuid)
                     .build());
 
-            // Lo que escuche esto corre después del commit y en su propia
-            // transacción: sembrar la demo acá adentro haría que un save fallido
-            // marcara esta transacción como rollback-only y tumbara el alta con
-            // él, que es exactamente lo que no puede pasar en la identificación.
             eventos.publishEvent(new UsuarioCreado(nuevo.getId()));
 
             return nuevo;

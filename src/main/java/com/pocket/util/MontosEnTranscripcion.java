@@ -7,18 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Extrae los importes que una transcripción menciona, en cualquiera de las
- * formas en que se dicen: "5000", "5.000", "cinco mil" o "cinco lucas".
- *
- * Existe para detectar respuestas fabricadas de la IA. Un modelo que no puede
- * leer el audio puede igual devolver un JSON válido con gastos verosímiles; si
- * el monto que reporta no aparece por ningún lado en lo que él mismo
- * transcribió, ese número no salió del audio.
- */
 public final class MontosEnTranscripcion {
 
-    /** Números que se dicen con una sola palabra, más los cientos. */
     private static final Map<String, Long> PALABRAS = Map.ofEntries(
             Map.entry("cero", 0L), Map.entry("un", 1L), Map.entry("uno", 1L), Map.entry("una", 1L),
             Map.entry("dos", 2L), Map.entry("tres", 3L), Map.entry("cuatro", 4L),
@@ -39,18 +29,11 @@ public final class MontosEnTranscripcion {
             Map.entry("setecientos", 700L), Map.entry("ochocientos", 800L),
             Map.entry("novecientos", 900L));
 
-    /**
-     * "gamba" es cien en lunfardo. No tiene equivalente formal en la lista de
-     * palabras porque nadie dice "gamba" como número suelto: siempre multiplica
-     * ("dos gambas" = 200), igual que "luca" y "palo".
-     */
     private static final Set<String> ESCALA_CIEN = Set.of("gamba", "gambas");
 
-    /** "luca" es mil en lunfardo; el modelo suele transcribirlo tal cual. */
     private static final Set<String> ESCALA_MIL = Set.of("mil", "luca", "lucas");
     private static final Set<String> ESCALA_MILLON = Set.of("millon", "millones", "palo", "palos");
 
-    /** "cinco lucas y media" = 5500: suma la mitad de la última escala aplicada. */
     private static final Set<String> MITAD = Set.of("medio", "media");
 
     private static final BigDecimal CIEN = BigDecimal.valueOf(100);
@@ -61,11 +44,6 @@ public final class MontosEnTranscripcion {
     private MontosEnTranscripcion() {
     }
 
-    /**
-     * ¿La transcripción menciona este importe, en alguna de sus formas?
-     * Una transcripción vacía nunca menciona nada: sin texto contra el cual
-     * contrastar, no hay forma de saber si el monto es real.
-     */
     public static boolean menciona(String transcripcion, BigDecimal monto) {
         if (transcripcion == null || transcripcion.isBlank() || monto == null) {
             return false;
@@ -73,7 +51,6 @@ public final class MontosEnTranscripcion {
         return extraer(transcripcion).stream().anyMatch(m -> m.compareTo(monto) == 0);
     }
 
-    /** Todos los importes que aparecen en el texto, en dígitos o en letras. */
     public static Set<BigDecimal> extraer(String transcripcion) {
         Set<BigDecimal> encontrados = new HashSet<>();
         if (transcripcion == null || transcripcion.isBlank()) {
@@ -89,40 +66,24 @@ public final class MontosEnTranscripcion {
         return encontrados;
     }
 
-    /** Minúsculas y sin acentos: "millón" y "millon" tienen que ser lo mismo. */
     private static String normalizar(String texto) {
         String sinAcentos = Normalizer.normalize(texto, Normalizer.Form.NFD)
                 .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
         return sinAcentos.toLowerCase(Locale.ROOT);
     }
 
-    /** Saca la puntuación pegada ("facturas," -> "facturas") sin romper "5.000". */
     private static String limpiarBordes(String token) {
         return token.replaceAll("^[.,]+", "").replaceAll("[.,]+$", "");
     }
 
-    /**
-     * Recorre los tokens acumulando el número que se está diciendo. Un token
-     * que no es parte de un número cierra el que venía armándose: así
-     * "cinco lucas en facturas, veinte mil de nafta" produce 5000 y 20000, y no
-     * un único número gigante.
-     */
     private static final class Acumulador {
 
         private final Set<BigDecimal> destino;
 
-        /** Bloques ya cerrados por una escala ("ciento cincuenta mil" -> 150000). */
         private BigDecimal total = BigDecimal.ZERO;
-        /** Lo que se viene sumando y todavía no fue multiplicado por una escala. */
         private BigDecimal parcial = BigDecimal.ZERO;
-        /** Última escala aplicada, para resolver "y media". */
         private BigDecimal ultimaEscala = BigDecimal.ZERO;
         private boolean enNumero;
-        /**
-         * Vimos una "y" y todavía no sabemos qué significa. Une en "treinta y
-         * cinco" y en "cinco lucas y media", pero separa dos importes distintos
-         * en "cinco lucas y veinte mil". Solo el token siguiente lo define.
-         */
         private boolean pendienteY;
 
         private Acumulador(Set<BigDecimal> destino) {
@@ -178,10 +139,6 @@ public final class MontosEnTranscripcion {
             cerrar();
         }
 
-        /**
-         * Decide qué era la "y" pendiente, ahora que sabemos qué la sigue:
-         * si continúa la misma decena sigue el número, si no arranca uno nuevo.
-         */
         private void resolverY(BigDecimal siguiente) {
             if (!pendienteY) {
                 return;
@@ -192,11 +149,6 @@ public final class MontosEnTranscripcion {
             }
         }
 
-        /**
-         * "treinta y cinco" continúa; "cinco lucas y veinte mil" no. La decena
-         * tiene que estar abierta (parcial termina en 0 sin ser centena redonda)
-         * y no puede haberse aplicado todavía una escala a este bloque.
-         */
         private boolean continuaDecena(BigDecimal siguiente) {
             if (siguiente == null || ultimaEscala.signum() != 0 || parcial.signum() == 0) {
                 return false;
@@ -213,7 +165,6 @@ public final class MontosEnTranscripcion {
             enNumero = true;
         }
 
-        /** "mil" sin nada delante vale 1000, no 0. */
         private void aplicarEscala(BigDecimal escala) {
             BigDecimal base = parcial.signum() == 0 ? BigDecimal.ONE : parcial;
             total = total.add(base.multiply(escala));
@@ -222,7 +173,6 @@ public final class MontosEnTranscripcion {
             enNumero = true;
         }
 
-        /** "cinco lucas y media" = 5500. Sin escala previa, "media" no es un monto. */
         private void aplicarMitad() {
             pendienteY = false;
             if (!enNumero || ultimaEscala.signum() == 0) {
@@ -246,10 +196,6 @@ public final class MontosEnTranscripcion {
             pendienteY = false;
         }
 
-        /**
-         * El punto separa miles ("150.000") y la coma decimales ("5,50"), que es
-         * como se escribe acá y como lo devuelve el modelo.
-         */
         private BigDecimal parsearDigitos(String token) {
             if (!token.matches("\\d[\\d.,]*")) {
                 return null;

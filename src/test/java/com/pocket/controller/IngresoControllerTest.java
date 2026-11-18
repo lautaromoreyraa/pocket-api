@@ -39,7 +39,6 @@ class IngresoControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // @Transactional revierte cada test, así que solo hace falta identificar al usuario.
         String deviceUuid = "device-" + UUID.randomUUID();
         token = obtenerToken(deviceUuid);
         usuarioId = usuarioRepository.findByDeviceUuid(deviceUuid).orElseThrow().getId();
@@ -119,8 +118,6 @@ class IngresoControllerTest {
     @Test
     @DisplayName("totalDelPeriodo sin ingresos devuelve cero, no null (RF-33)")
     void totalDelPeriodoSinIngresosEsCero() {
-        // Sin ingresos cargados no se muestra la capacidad de ahorro: el balance
-        // suma este total, así que un null acá sería un NPE en el cálculo.
         BigDecimal total = ingresoRepository.totalDelPeriodo(usuarioId, LocalDate.of(2026, 3, 1));
 
         assertThat(total).isEqualByComparingTo(BigDecimal.ZERO);

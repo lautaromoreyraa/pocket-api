@@ -1,56 +1,29 @@
-# =============================================================================
-#  PERFIL PROD — Railway
-#  Todo llega por variables de entorno. Ningún valor sensible en el repo.
-# =============================================================================
 
 spring:
 
-  # ---------------------------------------------------------------------------
-  #  BASE DE DATOS
-  #  Railway inyecta estas variables al vincular el servicio de MySQL.
-  # ---------------------------------------------------------------------------
   datasource:
     url: ${DATABASE_URL}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # El pool se configura en application.yml y lo ajusta el perfil de
-    # recursos de Railway por variable de entorno.
 
-  # ---------------------------------------------------------------------------
-  #  JPA — nunca mostrar SQL en producción
-  # ---------------------------------------------------------------------------
   jpa:
     show-sql: false
 
-# =============================================================================
-#  ERRORES — el mensaje interno de una excepción no sale a la calle
-#  Puede traer nombres de tablas o fragmentos de SQL. Las respuestas de
-#  validación las arma el manejador global, no el /error de Spring.
-# =============================================================================
 server:
   error:
     include-message: never
     include-binding-errors: never
 
-# =============================================================================
-#  SECRETOS E INTEGRACIONES
-#  Cargados desde el panel de variables de Railway.
-# =============================================================================
 pocket:
   security:
     jwt:
       secret: ${JWT_SECRET}
   ia:
     api-key: ${GEMINI_API_KEY}
-  # Sin default: en producción, una variable olvidada no puede dejar el alta
-  # sin verificar.
   turnstile:
     secreto: ${TURNSTILE_SECRETO}
 
-# =============================================================================
-#  LOGGING — solo lo necesario
-# =============================================================================
 logging:
   level:
     root: WARN

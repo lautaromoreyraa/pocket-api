@@ -58,9 +58,6 @@ public class HormigaServiceImpl implements HormigaService {
                 .toList();
     }
 
-    /** Promedio histórico por categoría en la ventana configurada (RN-05), con los
-     *  mismos filtros que la detección actual para que la comparación sea contra
-     *  lo mismo que se está midiendo. Vacío si no hay historia suficiente. */
     private Map<Integer, BigDecimal> promediosPorCategoria(UUID usuarioId, YearMonth periodo,
                                                             boolean credito, boolean incluirCuotas,
                                                             boolean incluirFijos) {
@@ -75,8 +72,6 @@ public class HormigaServiceImpl implements HormigaService {
                 periodo, primerPeriodo, props.getPromedio().getVentanaMeses());
         LocalDate ventanaDesde = PeriodoUtil.primerDia(ventana.get(0));
         LocalDate ventanaHasta = PeriodoUtil.ultimoDia(ventana.get(ventana.size() - 1));
-        // Una sola query de rango: los meses sin gastos de la ventana suman $0
-        // pero igual cuentan en el divisor (mismo criterio que el promedio global).
         List<Object[]> filasVentana = gastoRepository.agruparPorCategoria(
                 usuarioId, ventanaDesde, ventanaHasta, credito, incluirCuotas, incluirFijos);
 
@@ -86,9 +81,6 @@ public class HormigaServiceImpl implements HormigaService {
                 fila -> ((BigDecimal) fila[2]).divide(cantidadMeses, 2, RoundingMode.HALF_UP)));
     }
 
-    /** Variación porcentual del total actual contra el promedio de la categoría.
-     *  Null sin promedio disponible, o si la categoría no tiene historia previa
-     *  (promedio en $0: la variación porcentual contra cero no está definida). */
     private BigDecimal variacion(BigDecimal total, BigDecimal promedioCategoria) {
         if (promedioCategoria == null || promedioCategoria.compareTo(BigDecimal.ZERO) == 0) {
             return null;

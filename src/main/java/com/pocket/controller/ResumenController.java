@@ -24,7 +24,6 @@ public class ResumenController {
         return ResponseEntity.ok(resumenService.armar(periodo, credito));
     }
 
-    /** RF-45 — los meses que tienen datos, para el selector del Histórico. */
     @GetMapping("/periodos")
     public ResponseEntity<List<YearMonth>> periodos() {
         return ResponseEntity.ok(resumenService.periodosConDatos());

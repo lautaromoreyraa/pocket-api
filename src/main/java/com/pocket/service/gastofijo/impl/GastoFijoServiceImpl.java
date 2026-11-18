@@ -79,9 +79,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
     public GastoFijoResponse editar(UUID id, GastoFijoRequest request) {
         GastoFijo fijo = buscarPropio(id);
 
-        // Se edita la PLANTILLA, no los meses ya pagados. Si el alquiler sube,
-        // los recibos anteriores siguen diciendo lo que se pagó: son historia
-        // (RF-44) y reescribirlos borraría el aumento en vez de mostrarlo.
         fijo.setCategoria(buscarCategoria(request.categoriaId()));
         fijo.setDescripcion(request.descripcion());
         fijo.setMonto(request.monto());
@@ -97,14 +94,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
     public void eliminar(UUID id) {
         GastoFijo fijo = buscarPropio(id);
 
-        // Los gastos ya generados NO se borran: la plata salió, y el mes pasado
-        // no cambia porque hoy des-contrates el servicio (RF-44). Se los
-        // desvincula a mano en vez de dejarlo en un ON DELETE SET NULL porque
-        // MySQL no admite esa acción sobre una columna que además está en un
-        // CHECK, y porque así el que lee este método ve qué pasa con la historia.
-        //
-        // Siguen diciendo `origen = FIJO`: fueron un fijo cuando ocurrieron, y
-        // eso no deja de ser cierto porque la plantilla ya no exista.
         gastoRepository.desvincularDelFijo(fijo.getId());
 
         gastoFijoRepository.delete(fijo);
@@ -128,16 +117,11 @@ public class GastoFijoServiceImpl implements GastoFijoService {
                 })
                 .toList();
 
-        // El estimado usa el monto real donde ya lo hay: la pantalla muestra
-        // "Ingreso − Fijos = Te queda" y sumar la plantilla cuando pagaste otra
-        // cosa haría que ese número mienta.
         BigDecimal totalEstimado = items.stream()
                 .filter(item -> item.fijo().activo())
                 .map(item -> item.montoRegistrado() == null ? item.fijo().monto() : item.montoRegistrado())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        // Lo registrado suma también lo de las plantillas pausadas: si pagaste
-        // el fijo y después lo pausaste, la plata salió igual.
         BigDecimal totalRegistrado = items.stream()
                 .map(FijoDelPeriodoResponse::montoRegistrado)
                 .filter(monto -> monto != null)
@@ -149,10 +133,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
     @Override
     @Transactional
     public GastoResponse registrarDelPeriodo(UUID id, RegistroFijoRequest request) {
-        // Idempotencia (RF-41): el reintento exacto devuelve el mismo gasto en
-        // vez de crear otro. Va antes que todo lo demás porque un reintento no
-        // tiene por qué chocar con el 409 de "ya está registrado" que él mismo
-        // provocó.
         var existente = gastoRepository.findByIdempotencyKey(request.idempotencyKey());
         if (existente.isPresent()) {
             return gastoMapper.aResponse(existente.get());
@@ -190,9 +170,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
                 .medioPago(fijo.getMedioPago())
                 .origen(OrigenGasto.FIJO)
                 .fechaGasto(fechaGasto)
-                // RN-03 y RN-10 salen gratis: un fijo materializado es un gasto
-                // común, así que si es crédito se imputa al mes siguiente y
-                // aparece en la pestaña que le corresponde, sin reglas propias.
                 .fechaImputacion(PeriodoUtil.periodoDeImputacion(
                         fechaGasto, fijo.getMedioPago(),
                         props.getCuotas().getDesfasePrimeraCuota()).atDay(1))
@@ -210,22 +187,11 @@ public class GastoFijoServiceImpl implements GastoFijoService {
                         fijo.getId(), PeriodoUtil.primerDia(periodo), PeriodoUtil.ultimoDia(periodo))
                 .orElseThrow(() -> new RegistroDeFijoNoEncontradoException(fijo.getId(), periodo));
 
-        // Solo el monto. La fecha, la categoría y el medio de pago quedan como
-        // estaban: lo que se corrige acá es cuánto se pagó, no qué se pagó.
         gasto.setMonto(monto);
 
         return gastoMapper.aResponse(gastoRepository.save(gasto));
     }
 
-    /**
-     * Cuándo ocurrió el gasto.
-     *
-     * El día de vencimiento de la plantilla, salvo que todavía no haya llegado:
-     * si hoy es 16 y el fijo vence el 28, pagarlo hoy es un hecho de hoy, y una
-     * fecha futura sería inconsistente con el resto del sistema —los gastos
-     * sueltos ni siquiera la admiten (`@PastOrPresent`)—. En un mes ya cerrado
-     * el tope no aplica y queda el día de vencimiento.
-     */
     private LocalDate fechaDelRegistro(GastoFijo fijo, YearMonth periodo, YearMonth mesActual) {
         LocalDate vencimiento = fijo.vencimientoEn(periodo);
         if (!periodo.equals(mesActual)) {
@@ -235,7 +201,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
         return vencimiento.isAfter(hoy) ? hoy : vencimiento;
     }
 
-    /** Los gastos del período indexados por la plantilla que los generó. */
     private Map<UUID, Gasto> registradosDelPeriodo(UUID usuarioId, YearMonth periodo) {
         return gastoRepository.findFijosMaterializados(
                         usuarioId, PeriodoUtil.primerDia(periodo), PeriodoUtil.ultimoDia(periodo))
@@ -244,8 +209,6 @@ public class GastoFijoServiceImpl implements GastoFijoService {
                         gasto -> gasto.getGastoFijo().getId(), Function.identity()));
     }
 
-    /** Carga la plantilla y valida que sea del usuario actual. Una ajena se trata
-     *  como inexistente: un 403 confirmaría que ese id existe. */
     private GastoFijo buscarPropio(UUID id) {
         GastoFijo fijo = gastoFijoRepository.findById(id)
                 .orElseThrow(() -> new GastoFijoNoEncontradoException(id));

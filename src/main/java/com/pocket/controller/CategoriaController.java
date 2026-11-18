@@ -1,8 +1,7 @@
 package com.pocket.controller;
 
 import com.pocket.dto.categoria.CategoriaResponse;
-import com.pocket.mapper.categoria.CategoriaMapper;
-import com.pocket.repository.CategoriaRepository;
+import com.pocket.service.categoria.CategoriaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,12 +13,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CategoriaController {
 
-    private final CategoriaRepository categoriaRepository;
-    private final CategoriaMapper categoriaMapper;
+    private final CategoriaService categoriaService;
 
     @GetMapping
     public ResponseEntity<List<CategoriaResponse>> listar() {
-        return ResponseEntity.ok(
-                categoriaMapper.aResponse(categoriaRepository.findAllByOrderByOrdenAsc()));
+        return ResponseEntity.ok(categoriaService.listar());
     }
 }

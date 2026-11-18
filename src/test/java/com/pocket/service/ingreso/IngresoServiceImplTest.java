@@ -61,9 +61,6 @@ class IngresoServiceImplTest {
     @Test
     @DisplayName("El período llega como mes y se guarda como el día 1")
     void normalizaElPeriodoAlDiaUno() {
-        // El request ya no admite un día: el ingreso se carga al mes. Antes
-        // llegaba un LocalDate que el servicio normalizaba igual, así que el
-        // día era un dato que el cliente tenía que inventar para nada.
         IngresoResponse resp = service.registrar(new IngresoRequest(
                 new BigDecimal("500000.00"), "sueldo", YearMonth.of(2026, 3)));
 

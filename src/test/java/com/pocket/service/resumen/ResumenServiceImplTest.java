@@ -62,8 +62,6 @@ class ResumenServiceImplTest {
         hormigaService = mock(HormigaService.class);
         compraService = mock(CompraFinanciadaService.class);
         authService = mock(AuthService.class);
-        // El mapper real, no un mock: así los tests de movimientos verifican de
-        // verdad que el contador de repeticiones llega a cada fila.
         GastoMapper gastoMapper = new GastoMapperImpl();
 
         Usuario usuario = Usuario.builder().id(usuarioId).deviceUuid("dev").build();
@@ -110,7 +108,6 @@ class ResumenServiceImplTest {
         assertThat(resp.porCategoria()).containsExactly(marcada);
     }
 
-    // --- Aviso de hormiga -------------------------------------------------
 
     @Test
     @DisplayName("avisoHormiga es la categoría de mayor total, no la primera de la lista")
@@ -130,7 +127,6 @@ class ResumenServiceImplTest {
         assertThat(service.armar(periodo, false).avisoHormiga()).isNull();
     }
 
-    // --- Movimientos ------------------------------------------------------
 
     @Test
     @DisplayName("El resumen trae los últimos movimientos del período")
@@ -201,8 +197,6 @@ class ResumenServiceImplTest {
         GastoResponse movimiento = service.armar(periodo, true).ultimosMovimientos().get(0);
 
         assertThat(movimiento.hormiga()).isFalse();
-        // El badge "N.ª VEZ" tampoco viaja: contarle 9 repeticiones a una cuota
-        // diría que la pagaste 9 veces este mes.
         assertThat(movimiento.ocurrenciasCategoria()).isNull();
         assertThat(movimiento.nroCuota()).isEqualTo(2);
         assertThat(movimiento.compraFinanciadaId()).isNotNull();
@@ -212,9 +206,7 @@ class ResumenServiceImplTest {
     @DisplayName("El total de la categoría cuenta todo, pero las ocurrencias solo lo que puede ser hormiga")
     void totalYOcurrenciasSalenDeAgregadosDistintos() {
         Categoria servicios = categoria(1, "Servicios");
-        // Tres filas de plata: dos gastos sueltos y un fijo…
         totales(false, servicios, 3L, "60000.00");
-        // …pero solo dos cuentan como repeticiones evitables.
         ocurrencias(false, servicios, 2L, "15000.00");
 
         CategoriaResumenResponse fila = service.armar(periodo, false).porCategoria().get(0);
@@ -228,7 +220,6 @@ class ResumenServiceImplTest {
     void categoriaSoloConFijosMuestraCeroOcurrencias() {
         Categoria servicios = categoria(1, "Servicios");
         totales(false, servicios, 1L, "45000.00");
-        // El agregado de ocurrencias no trae la categoría: el mes solo tuvo fijos.
         when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, false, false, false))
                 .thenReturn(List.of());
 
@@ -238,19 +229,16 @@ class ResumenServiceImplTest {
         assertThat(fila.ocurrencias()).isZero();
     }
 
-    /** El agregado de PLATA: incluye cuotas y fijos. */
     private void totales(boolean credito, Categoria categoria, long cantidad, String total) {
         when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, true, true))
                 .thenReturn(List.<Object[]>of(new Object[]{categoria, cantidad, new BigDecimal(total)}));
     }
 
-    /** El agregado de REPETICIONES: sin cuotas ni fijos (RN-02). */
     private void ocurrencias(boolean credito, Categoria categoria, long cantidad, String total) {
         when(gastoRepository.agruparPorCategoria(usuarioId, desde, hasta, credito, false, false))
                 .thenReturn(List.<Object[]>of(new Object[]{categoria, cantidad, new BigDecimal(total)}));
     }
 
-    // --- Cuotas y comprometido -------------------------------------------
 
     @Test
     @DisplayName("comprasEnCurso queda vacío en la pestaña de débito")
@@ -289,7 +277,6 @@ class ResumenServiceImplTest {
         verify(gastoRepository, never()).totalCuotasDelPeriodo(any(), any(), any());
     }
 
-    // --- Balance ----------------------------------------------------------
 
     @Test
     @DisplayName("El ahorro global es el mismo número en la pestaña débito y en la de crédito")
@@ -337,7 +324,6 @@ class ResumenServiceImplTest {
                 .isEqualByComparingTo("40000.00");
     }
 
-    // --- Promedio histórico ----------------------------------------------
 
     @Test
     @DisplayName("Sin historial de gastos, el promedio es null")
@@ -395,7 +381,6 @@ class ResumenServiceImplTest {
         assertThat(service.armar(periodo, true).promedioHistorico()).isEqualByComparingTo("3000.00");
     }
 
-    // --- Períodos con datos ----------------------------------------------
 
     @Test
     @DisplayName("periodosConDatos devuelve los meses únicos, del más viejo al más nuevo")
@@ -417,7 +402,6 @@ class ResumenServiceImplTest {
                 enCurso.minusMonths(2).atDay(1),
                 enCurso.minusMonths(1).atDay(1),
                 enCurso.atDay(1),
-                // Cuotas futuras materializadas (RF-22): tienen fila, pero no son historia.
                 enCurso.plusMonths(1).atDay(1),
                 enCurso.plusMonths(2).atDay(1)));
 
@@ -425,7 +409,6 @@ class ResumenServiceImplTest {
                 .containsExactly(enCurso.minusMonths(2), enCurso.minusMonths(1));
     }
 
-    // --- Helpers ----------------------------------------------------------
 
     private Categoria categoria(Integer id, String nombre) {
         return Categoria.builder().id(id).nombre(nombre).icono("icon").color("#000").orden(id).build();

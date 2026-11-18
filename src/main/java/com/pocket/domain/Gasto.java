@@ -32,26 +32,14 @@ public class Gasto {
     @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
 
-    /** No nulo solo si este gasto es una cuota de una compra financiada. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "compra_financiada_id")
     private CompraFinanciada compraFinanciada;
 
-    /**
-     * No nulo solo si este gasto se materializó desde una plantilla de gasto fijo.
-     *
-     * Queda en null si después se borra la plantilla (ON DELETE SET NULL): los
-     * meses ya pagados son historia y se conservan (RF-44). Por eso el `origen`
-     * sigue diciendo FIJO aunque acá no haya nada.
-     */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "gasto_fijo_id")
     private GastoFijo gastoFijo;
 
-    /**
-     * Clave generada por el cliente para evitar duplicados cuando se reintenta
-     * el envío de un borrador offline (RF-41, RF-42).
-     */
     @Column(name = "idempotency_key", nullable = false, unique = true, columnDefinition = "BINARY(16)")
     private UUID idempotencyKey;
 
@@ -74,7 +62,6 @@ public class Gasto {
     @Column(name = "fecha_imputacion", nullable = false)
     private LocalDate fechaImputacion;
 
-    /** Número de cuota dentro de la compra financiada. Nulo si no es cuota. */
     @Column(name = "nro_cuota")
     private Integer nroCuota;
 
@@ -82,18 +69,10 @@ public class Gasto {
     @Column(name = "fecha_alta", nullable = false, updatable = false)
     private Instant fechaAlta;
 
-    /** Las cuotas no computan como gasto hormiga (RN-02). */
     public boolean esCuota() {
         return compraFinanciada != null;
     }
 
-    /**
-     * Los gastos fijos tampoco computan como hormiga (RN-02).
-     *
-     * Se mira el `origen` y no la FK a propósito: si el usuario borra la
-     * plantilla, `gastoFijo` queda en null pero el gasto sigue habiendo sido un
-     * fijo, y la luz no pasa a ser un gasto hormiga retroactivamente.
-     */
     public boolean esFijo() {
         return origen == OrigenGasto.FIJO;
     }

@@ -45,7 +45,6 @@ class GeminiProcesadorServiceImplTest {
     private RestClient.ResponseSpec responseSpec;
     private CategoriaRepository categoriaRepository;
     private GeminiProcesadorServiceImpl service;
-    /** Campo, no local: los tests de reintento ajustan el techo y el backoff. */
     private PocketProperties props;
 
     private final Usuario usuario = Usuario.builder().id(UUID.randomUUID()).deviceUuid("dev").build();
@@ -66,9 +65,6 @@ class GeminiProcesadorServiceImplTest {
         when(iaRestClient.post()).thenReturn(bodyUriSpec);
         when(bodyUriSpec.uri(anyString())).thenReturn(bodySpec);
         when(bodySpec.contentType(any())).thenReturn(bodySpec);
-        // any(Object.class), no any(): body() está sobrecargado (Object /
-        // StreamingHttpOutputMessage.Body) y any() sin tipo matchea contra la
-        // sobrecarga más específica, no contra la que realmente se invoca.
         when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
         when(bodySpec.retrieve()).thenReturn(responseSpec);
 
@@ -85,11 +81,8 @@ class GeminiProcesadorServiceImplTest {
         props.getIa().setModelo("gemini-3.6-flash");
         props.getIa().setApiKey("test-key");
         props.getIa().setIntentos(3);
-        // Backoff casi nulo: acá se verifica la política de reintento, no la espera.
         props.getIa().setBackoffInicialMs(1);
 
-        // El armador va real y no mockeado: la verificación de coherencia contra
-        // gastos fabricados es justamente lo que varios de estos tests ejercitan.
         service = new GeminiProcesadorServiceImpl(
                 iaRestClient, props, categoriaRepository, new ObjectMapper(),
                 new ArmadorDeGastos(props), new ReintentosDeIA(props));
@@ -225,7 +218,6 @@ class GeminiProcesadorServiceImplTest {
         assertThat(resp.detectados().get(0).medioPago()).isEqualTo(MedioPago.CREDITO);
     }
 
-    // --- cantidadCuotas ------------------------------------------------
 
     @Test
     @DisplayName("cantidadCuotas viene null cuando el audio no menciona cuotas")
@@ -267,11 +259,6 @@ class GeminiProcesadorServiceImplTest {
         return resp.detectados().get(0);
     }
 
-    // --- Coherencia entre montos y transcripción -------------------------
-    //
-    // Un modelo que no puede leer el audio no falla: devuelve un JSON válido
-    // con gastos inventados. El único indicio disponible es que esos montos no
-    // aparecen en la transcripción que él mismo produjo.
 
     @Test
     @DisplayName("Si los montos aparecen en la transcripción, la respuesta se devuelve normalmente")
@@ -361,9 +348,6 @@ class GeminiProcesadorServiceImplTest {
     @Test
     @DisplayName("El caso real que motivó el control: el modelo transcribe una cosa y reporta gastos de otra")
     void gastosFabricadosConTranscripcionDistinta() {
-        // Reproduce lo que devolvió gemini-3.7-flash con un audio que en realidad
-        // decía "cinco lucas en facturas, veinte mil de nafta y ciento cincuenta
-        // mil en el súper": montos plausibles, sin ninguna relación con el audio.
         gemeniResponde("""
                 {
                   "transcripcion": "Anotame ahí 40 lucas de combustible y 18 lucas y media de la comida del perro",
@@ -377,10 +361,6 @@ class GeminiProcesadorServiceImplTest {
                 .isInstanceOf(AudioNoComprendidoException.class);
     }
 
-    // --- Reintentos ------------------------------------------------------
-    //
-    // Gemini devuelve 503 y 429 seguido. Un solo intento convierte eso en un
-    // error para el usuario, aunque el pedido siguiente hubiera funcionado.
 
     private static final String RESPUESTA_OK = """
             {
@@ -459,7 +439,6 @@ class GeminiProcesadorServiceImplTest {
         assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
                 .isInstanceOf(HttpServerErrorException.class);
 
-        // 3 intentos totales, según pocket.ia.intentos en el setUp
         verify(responseSpec, times(3)).body(GeminiResponse.class);
     }
 
@@ -484,13 +463,7 @@ class GeminiProcesadorServiceImplTest {
         verify(responseSpec, times(1)).body(GeminiResponse.class);
     }
 
-    // --- El retryDelay que manda el proveedor ----------------------------
-    //
-    // Gemini dice en el cuerpo del 429 cuánto hay que esperar. Ignorarlo y
-    // reintentar al segundo es garantizarse otro 429: los 3 intentos se
-    // queman sin chance y el usuario espera de más para el mismo error.
 
-    /** Un 429 con el RetryInfo que Gemini manda de verdad. */
     private HttpClientErrorException rateLimit(String retryDelay) {
         String cuerpo = """
                 {"error": {"code": 429, "status": "RESOURCE_EXHAUSTED",
@@ -514,7 +487,6 @@ class GeminiProcesadorServiceImplTest {
         long transcurrido = (System.nanoTime() - inicio) / 1_000_000;
 
         assertThat(resp.detectados()).hasSize(1);
-        // El backoff configurado es de 1ms: si esperó ~400ms fue por el retryDelay.
         assertThat(transcurrido).isGreaterThanOrEqualTo(400);
         verify(responseSpec, times(2)).body(GeminiResponse.class);
     }
@@ -528,7 +500,6 @@ class GeminiProcesadorServiceImplTest {
         assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
                 .isInstanceOf(HttpClientErrorException.class);
 
-        // Es el caso de la cuota diaria agotada: esperar 35s no la devuelve.
         verify(responseSpec, times(1)).body(GeminiResponse.class);
     }
 
@@ -559,7 +530,6 @@ class GeminiProcesadorServiceImplTest {
         assertThatThrownBy(() -> service.extraerGastos(audioValido(), usuario))
                 .isInstanceOf(HttpClientErrorException.class);
 
-        // 60s supera el techo de 1s: corta en el primer intento.
         verify(responseSpec, times(1)).body(GeminiResponse.class);
     }
 
@@ -576,7 +546,6 @@ class GeminiProcesadorServiceImplTest {
         service.extraerGastos(audioValido(), usuario);
         long transcurrido = (System.nanoTime() - inicio) / 1_000_000;
 
-        // Pidió 50ms pero el backoff era de 300: gana el mayor de los dos.
         assertThat(transcurrido).isGreaterThanOrEqualTo(300);
     }
 
@@ -597,7 +566,7 @@ class GeminiProcesadorServiceImplTest {
         assertThat(enviado.contents()).hasSize(1);
         List<com.pocket.dto.ia.GeminiRequest.Part> partes = enviado.contents().get(0).parts();
         assertThat(partes).hasSize(2);
-        assertThat(partes.get(0).text()).contains("Delivery/Restaurantes"); // el prompt incluye las categorías
+        assertThat(partes.get(0).text()).contains("Delivery/Restaurantes");
         assertThat(partes.get(1).inlineData().data())
                 .isEqualTo(java.util.Base64.getEncoder().encodeToString("contenido-de-prueba".getBytes()));
     }

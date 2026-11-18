@@ -43,7 +43,6 @@ public class GastoServiceImpl implements GastoService {
     @Override
     @Transactional
     public GastoResponse registrar(GastoRequest request, OrigenGasto origen) {
-        // Idempotencia (RF-41): si ya se registró esta clave, devolvemos el existente.
         return gastoRepository.findByIdempotencyKey(request.idempotencyKey())
                 .map(gastoMapper::aResponse)
                 .orElseGet(() -> crear(request, origen));
@@ -79,23 +78,17 @@ public class GastoServiceImpl implements GastoService {
     public GastoResponse editar(UUID id, GastoRequest request) {
         Gasto gasto = buscarPropio(id);
 
-        // Una cuota se gestiona desde la compra: editarla sola rompería el
-        // invariante de que las N cuotas suman el total y dejaría la compra
-        // con cuotas en categorías distintas (RF-25).
         if (gasto.esCuota()) {
             throw new OperacionNoPermitidaException(MENSAJE_CUOTA);
         }
 
-        // La idempotencyKey del request se ignora: la clave del gasto no se toca.
         gasto.setMonto(request.monto());
         gasto.setCategoria(buscarCategoria(request.categoriaId()));
         gasto.setDescripcion(request.descripcion());
         gasto.setMedioPago(request.medioPago());
         gasto.setFechaGasto(request.fechaGasto());
-        // Recalcular la imputación: si pasó de débito a crédito, se mueve al mes siguiente.
         gasto.setFechaImputacion(imputacion(request.fechaGasto(), request.medioPago()));
 
-        // El promedio y las hormigas salen por consulta, no hay nada que recalcular (RF-14).
         return gastoMapper.aResponse(gastoRepository.save(gasto));
     }
 
@@ -123,8 +116,6 @@ public class GastoServiceImpl implements GastoService {
         return gastoMapper.aResponse(gastos);
     }
 
-    /** Carga el gasto y valida que pertenezca al usuario actual.
-     *  Un gasto ajeno se trata como inexistente: un 403 confirmaría que ese id existe. */
     private Gasto buscarPropio(UUID id) {
         Gasto gasto = gastoRepository.findById(id)
                 .orElseThrow(() -> new GastoNoEncontradoException(id));
