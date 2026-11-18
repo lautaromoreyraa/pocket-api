@@ -76,15 +76,6 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.de(400, "Archivo inválido", e.getMessage()));
     }
 
-    /**
-     * Falla una integración externa sin manejo específico propio (Gemini,
-     * la API de cotización si algún día se llama fuera de su fallback, etc.):
-     * 502, no 500. Sin este handler la excepción quedaba sin capturar y
-     * dependía del forward interno a /error para no filtrar (ver
-     * SecurityConfig: JwtAuthenticationFilter, como todo OncePerRequestFilter,
-     * no corre en dispatches de tipo ERROR por default, así que /error
-     * necesita estar en permitAll para no devolver un 401 fantasma).
-     */
     @ExceptionHandler(RestClientException.class)
     public ResponseEntity<ErrorResponse> servicioExternoNoDisponible(RestClientException e) {
         log.warn("Falló una llamada a un servicio externo: {}", e.getMessage());

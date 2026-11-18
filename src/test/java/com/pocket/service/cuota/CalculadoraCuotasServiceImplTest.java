@@ -15,10 +15,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * El test más importante del proyecto: verifica la regla de redondeo de
- * cuotas (RN-04). Clase pura, sin contexto de Spring.
- */
 class CalculadoraCuotasServiceImplTest {
 
     private final CalculadoraCuotasServiceImpl calculadora =

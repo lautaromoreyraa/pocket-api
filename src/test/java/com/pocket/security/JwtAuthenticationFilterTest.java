@@ -67,7 +67,6 @@ class JwtAuthenticationFilterTest {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         assertThat(auth).isNotNull();
         assertThat(auth.getPrincipal()).isSameAs(usuario);
-        // La cadena siempre continua.
         assertThat(chain.getRequest()).isSameAs(request);
     }
 

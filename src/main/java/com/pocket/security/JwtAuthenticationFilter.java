@@ -19,10 +19,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.UUID;
 
-/**
- * Lee el JWT del header Authorization y puebla el SecurityContext.
- * En mobile no hay cookies, por eso el token viaja siempre en el header.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -37,11 +33,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        // A propósito en DEBUG y no TRACE: es la primera pista cuando un
-        // request se cae antes de llegar al controller (ver diagnóstico de
-        // /api/audio devolviendo 401 fantasma con archivos grandes: el
-        // problema terminó siendo el forward a /error, no este filtro, pero
-        // sin este log confirmar que el filtro SÍ corría costó mucho más).
         log.debug("JWT filter: método={}, path={}, dispatcherType={}, tieneAuthorizationHeader={}",
                 request.getMethod(), request.getRequestURI(), request.getDispatcherType(),
                 request.getHeader(HttpHeaders.AUTHORIZATION) != null);

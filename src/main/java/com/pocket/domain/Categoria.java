@@ -9,7 +9,6 @@ import lombok.*;
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class Categoria {
 
-    /** Nombre de la categoría de fallback (RF-35). */
     public static final String OTROS = "Otros";
 
     @Id

@@ -16,24 +16,11 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientException;
 
-/**
- * Reintentos contra un proveedor de IA.
- *
- * Vive fuera de las implementaciones porque la política no depende de cuál sea:
- * un 503 es saturación y un 429 es cuota en los dos, y en los dos hay alguien
- * del otro lado con el teléfono en la mano esperando.
- */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ReintentosDeIA {
 
-    /**
-     * Gemini manda cuánto esperar en el cuerpo del 429, no en un header.
-     *
-     * Buscarlo también cuando el proveedor es otro no molesta: si no está, no
-     * matchea y se cae al header estándar o al backoff.
-     */
     private static final Pattern RETRY_DELAY =
             Pattern.compile("\"retryDelay\"\\s*:\\s*\"(\\d+(?:\\.\\d+)?)s\"");
 
@@ -52,9 +39,6 @@ public class ReintentosDeIA {
                     throw e;
                 }
 
-                // Cuando el proveedor dice cuánto esperar, esperar menos es
-                // pedir el mismo error de nuevo: el backoff exponencial solo
-                // aplica si no hay indicación.
                 Long pedida = esperaPedida(e);
                 long espera = pedida == null ? backoff : Math.max(pedida, backoff);
 
@@ -74,13 +58,6 @@ public class ReintentosDeIA {
         }
     }
 
-    /**
-     * Cuánto pide esperar el proveedor, en milisegundos, o null si no lo dice.
-     *
-     * El header {@code Retry-After} es el estándar y se mira primero; Gemini no
-     * siempre lo incluye y lo manda dentro del cuerpo, en una entrada de tipo
-     * {@code RetryInfo} con un {@code retryDelay} como "35s" o "1.5s".
-     */
     private Long esperaPedida(RestClientException e) {
         if (!(e instanceof HttpStatusCodeException http)) {
             return null;
@@ -92,8 +69,6 @@ public class ReintentosDeIA {
             try {
                 return Long.parseLong(retryAfter.trim()) * 1000;
             } catch (NumberFormatException ignorado) {
-                // Retry-After admite también una fecha HTTP. No vale la pena
-                // parsearla: el cuerpo de Gemini es la fuente principal.
             }
         }
 
@@ -104,12 +79,6 @@ public class ReintentosDeIA {
         return Math.round(Double.parseDouble(m.group(1)) * 1000);
     }
 
-    /**
-     * Transitorio es lo que puede salir distinto si se vuelve a preguntar:
-     * saturación del proveedor (503), rate limit (429) y timeouts o cortes de
-     * red. Un 400 por request mal armado o un 404 de modelo inexistente no
-     * mejoran esperando, y reintentarlos solo multiplica la espera del usuario.
-     */
     private boolean esTransitorio(RestClientException e) {
         if (e instanceof HttpServerErrorException) {
             return true;

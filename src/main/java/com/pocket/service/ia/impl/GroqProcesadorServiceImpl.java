@@ -31,29 +31,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * Extracción de gastos en dos pasos: primero se transcribe el audio, después se
- * leen los gastos de esa transcripción.
- *
- * <pre>
- *   audio ── modelo de voz ──▶ transcripción ── modelo de texto ──▶ gastos
- * </pre>
- *
- * La diferencia con el proveedor multimodal no es la cuota: es <b>quién escribe
- * la transcripción</b>. Con un solo modelo que escucha y responde, la
- * transcripción contra la que se verifican los montos la redacta el mismo
- * modelo que podría estar inventándolos; si fabrica un gasto, puede fabricar la
- * frase que lo justifica.
- *
- * Acá el modelo que extrae <b>nunca recibe el audio</b>. Solo ve el texto que
- * produjo un modelo dedicado a transcribir, así que un monto que no esté escrito
- * no tiene de dónde salir, y si aun así lo inventa, no aparece en la
- * transcripción y {@link ArmadorDeGastos} lo descarta. La verificación pasa de
- * ser un modelo contra sí mismo a dos fuentes independientes.
- *
- * Se activa con {@code pocket.ia.proveedor=groq}. Ver "Gastos fabricados" en el
- * CLAUDE.md.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -80,22 +57,13 @@ public class GroqProcesadorServiceImpl implements ProcesadorIAService {
         List<Categoria> categorias = categoriaRepository.findAllByOrderByOrdenAsc();
         RespuestaModeloIA modelo = extraerDelTexto(transcripcion, categorias);
 
-        // La transcripción que se verifica y la que se devuelve es la del modelo
-        // de voz, no algo que el de texto pueda haber reescrito: es la evidencia
-        // y tiene que venir de quien efectivamente escuchó.
-        //
-        // El audio no se guarda en ningún momento (RNF-02): solo vivió en
-        // memoria durante este método.
         return armadorDeGastos.armar(modelo, transcripcion, categorias);
     }
 
-    /** Paso 1 — el audio se manda tal cual, sin base64: el endpoint es multipart. */
     private String transcribir(MultipartFile audio) {
         MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
         form.add("file", recurso(audio));
         form.add("model", props.getIa().getGroq().getModeloVoz());
-        // Fijar el idioma mejora bastante la transcripción de jerga rioplatense
-        // ("lucas", "gambas") frente a dejar que el modelo lo adivine.
         form.add("language", "es");
         form.add("response_format", "json");
 
@@ -110,7 +78,6 @@ public class GroqProcesadorServiceImpl implements ProcesadorIAService {
         return respuesta == null ? null : respuesta.text();
     }
 
-    /** Paso 2 — solo texto de entrada y JSON de salida. Este modelo no oye nada. */
     private RespuestaModeloIA extraerDelTexto(String transcripcion, List<Categoria> categorias) {
         String prompt = PromptDeExtraccion.desdeTranscripcion(categorias, transcripcion);
 
@@ -125,10 +92,6 @@ public class GroqProcesadorServiceImpl implements ProcesadorIAService {
         return parsear(extraerContenido(respuesta));
     }
 
-    /**
-     * El nombre del archivo importa: el endpoint lo usa para deducir el formato
-     * del audio, y sin él rechaza el request.
-     */
     private Resource recurso(MultipartFile audio) {
         byte[] bytes;
         try {

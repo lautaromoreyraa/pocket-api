@@ -39,7 +39,6 @@ class CotizacionControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private CotizacionRepository cotizacionRepository;
 
-    // Reemplaza el RestClient real de la app: nunca le pegamos a la API de verdad.
     @MockitoBean
     @Qualifier("cotizacionRestClient")
     private RestClient cotizacionRestClient;

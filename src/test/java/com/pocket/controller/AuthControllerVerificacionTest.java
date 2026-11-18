@@ -62,8 +62,6 @@ class AuthControllerVerificacionTest {
         doThrow(new VerificacionHumanaFallidaException("no"))
                 .when(verificadorDeHumano).verificar(any());
 
-        // La app pide el alta en cada apertura: quien vuelve no resuelve otro
-        // desafío ni depende de que Cloudflare conteste.
         mockMvc.perform(post("/api/auth/dispositivo")
                         .contentType(MediaType.APPLICATION_JSON).content(cuerpo))
                 .andExpect(status().isOk());

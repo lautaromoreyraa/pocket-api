@@ -79,7 +79,6 @@ class CotizacionServiceImplTest {
                 .build();
     }
 
-    // --- refrescar() nunca lanza ---------------------------------------
 
     @Test
     @DisplayName("refrescar(): si la API falla, no propaga la excepción")
@@ -122,7 +121,7 @@ class CotizacionServiceImplTest {
         service.refrescar();
 
         verify(cotizacionRepository).save(existente);
-        assertThat(existente.getId()).isEqualTo(1); // misma fila, no una nueva
+        assertThat(existente.getId()).isEqualTo(1);
         assertThat(existente.getValorCompra()).isEqualByComparingTo("1300.00");
         assertThat(existente.getValorVenta()).isEqualByComparingTo("1350.00");
     }
@@ -138,7 +137,6 @@ class CotizacionServiceImplTest {
         verify(cotizacionRepository).save(any(Cotizacion.class));
     }
 
-    // --- obtenerBlue() ----------------------------------------------------
 
     @Test
     @DisplayName("Una cotización vigente no dispara una llamada nueva a la API")

@@ -45,7 +45,6 @@ class CompraFinanciadaControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // @Transactional revierte cada test, así que solo hace falta sembrar lo propio.
         hogarId = categoriaRepository.save(Categoria.builder()
                 .nombre("Hogar").icono("home").color("#111111").orden(1).build()).getId();
         entretenimientoId = categoriaRepository.save(Categoria.builder()
@@ -111,11 +110,9 @@ class CompraFinanciadaControllerTest {
                         .content("{\"categoriaId\": %d, \"descripcion\": \"Smart TV\"}".formatted(entretenimientoId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categoria").value("Entretenimiento"))
-                // Las 9 cuotas de la respuesta quedaron con la nueva categoría.
                 .andExpect(jsonPath("$.cuotas.length()").value(9))
                 .andExpect(jsonPath("$.cuotas[*].categoria", everyItem(is("Entretenimiento"))));
 
-        // Los montos no se tocaron: la suma sigue cerrando exacta.
         assertThat(sumaDeCuotas()).isEqualByComparingTo(new BigDecimal("12500.00"));
     }
 

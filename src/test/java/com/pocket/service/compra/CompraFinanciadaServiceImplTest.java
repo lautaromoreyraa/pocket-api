@@ -63,7 +63,6 @@ class CompraFinanciadaServiceImplTest {
         categoria = categoria("Hogar", 1);
         lenient().when(authService.actual()).thenReturn(usuario);
         lenient().when(categoriaRepository.findById(1)).thenReturn(Optional.of(categoria));
-        // save devuelve la misma compra con id, como haría la base.
         lenient().when(compraRepository.save(any(CompraFinanciada.class))).thenAnswer(inv -> {
             CompraFinanciada c = inv.getArgument(0);
             if (c.getId() == null) c.setId(UUID.randomUUID());
@@ -174,7 +173,6 @@ class CompraFinanciadaServiceImplTest {
         verify(compraRepository, never()).delete(any());
     }
 
-    // --- helpers -----------------------------------------------------------
 
     private CompraFinanciada guardada() {
         org.mockito.ArgumentCaptor<CompraFinanciada> captor =
@@ -183,7 +181,6 @@ class CompraFinanciadaServiceImplTest {
         return captor.getValue();
     }
 
-    /** Compra con sus 9 cuotas ya generadas por la calculadora real. */
     private CompraFinanciada compraConCuotas() {
         CompraFinanciada compra = CompraFinanciada.builder()
                 .id(UUID.randomUUID()).usuario(usuario).idempotencyKey(UUID.randomUUID())

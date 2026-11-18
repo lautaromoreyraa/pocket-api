@@ -114,7 +114,6 @@ class HormigaServiceImplTest {
     void historiaInsuficienteVariacionEnNull() {
         when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), anyBoolean(), anyBoolean()))
                 .thenReturn(fila("Delivery", 3, "15000.00"));
-        // Enero 2026 -> solo 2 meses previos a marzo 2026 (mesesMinimos = 2, hace falta más).
         when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2026, 1, 1));
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
@@ -127,7 +126,6 @@ class HormigaServiceImplTest {
     void calculaVariacionPorcentual() {
         when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), eq(false), eq(false)))
                 .thenReturn(fila("Delivery", 3, "15000.00"));
-        // Diciembre 2025 -> 3 meses previos a marzo 2026: ya alcanza (mesesMinimos = 2).
         when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
         when(gastoRepository.agruparPorCategoria(
                 eq(usuarioId), eq(LocalDate.of(2025, 12, 1)), eq(LocalDate.of(2026, 2, 28)), eq(false), eq(false), eq(false)))
@@ -135,7 +133,6 @@ class HormigaServiceImplTest {
 
         List<HormigaResponse> hormigas = service.detectar(usuarioId, periodo, false);
 
-        // Promedio de la ventana: 9000 / 3 meses = 3000. Variación: (15000-3000)/3000*100 = 400%.
         assertThat(hormigas.get(0).porcentajeSobrePromedio()).isEqualByComparingTo("400.00");
     }
 
@@ -145,7 +142,6 @@ class HormigaServiceImplTest {
         when(gastoRepository.agruparPorCategoria(eq(usuarioId), eq(desde), eq(hasta), eq(false), eq(false), eq(false)))
                 .thenReturn(fila("Delivery", 3, "15000.00"));
         when(gastoRepository.primerPeriodoConGastos(usuarioId)).thenReturn(LocalDate.of(2025, 12, 1));
-        // La ventana no trae ninguna fila para "Delivery": nunca se gastó antes en esa categoría.
         when(gastoRepository.agruparPorCategoria(
                 eq(usuarioId), eq(LocalDate.of(2025, 12, 1)), eq(LocalDate.of(2026, 2, 28)), eq(false), eq(false), eq(false)))
                 .thenReturn(List.of());

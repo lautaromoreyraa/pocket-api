@@ -102,7 +102,6 @@ class GroqProcesadorServiceImplTest {
         assertThat(respuesta.detectados().get(1).categoriaId()).isEqualTo(combustibleId);
         assertThat(respuesta.detectados().get(1).medioPago()).isEqualTo(MedioPago.DEBITO);
 
-        // Los dos endpoints, en orden: primero el de voz y después el de texto.
         verify(bodyUriSpec).uri("/audio/transcriptions");
         verify(bodyUriSpec).uri("/chat/completions");
     }
@@ -110,8 +109,6 @@ class GroqProcesadorServiceImplTest {
     @Test
     @DisplayName("La transcripción que se devuelve es la del modelo de voz, no la del de texto")
     void devuelveLaTranscripcionDelModeloDeVoz() {
-        // El modelo de texto intenta colar su propia version del audio; la que
-        // vale es la de quien efectivamente escucho.
         responde("Gasté cinco mil en facturas", """
                 {"transcripcion": "otra cosa que yo me invento",
                  "gastos": [{"monto": 5000, "categoria": "Delivery/Restaurantes",
@@ -206,7 +203,6 @@ class GroqProcesadorServiceImplTest {
                 .isInstanceOf(AudioNoComprendidoException.class);
     }
 
-    /** Encadena las dos respuestas: la del modelo de voz y la del de texto. */
     private void responde(String transcripcion, String jsonDeGastos) {
         when(responseSpec.body(GroqTranscripcionResponse.class))
                 .thenReturn(new GroqTranscripcionResponse(transcripcion));

@@ -58,7 +58,6 @@ class GastoFijoServiceImplTest {
     private Categoria servicios;
     private PocketProperties props;
 
-    /** El mes en curso según la misma zona horaria que usa el servicio. */
     private YearMonth mesActual;
 
     @BeforeEach
@@ -92,7 +91,6 @@ class GastoFijoServiceImplTest {
         lenient().when(gastoRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
     }
 
-    // --- ABM de la plantilla ------------------------------------------------
 
     @Test
     @DisplayName("Un fijo nuevo nace activo aunque el request no diga nada del estado")
@@ -124,7 +122,6 @@ class GastoFijoServiceImplTest {
 
         service.editar(fijo.getId(), request(true));
 
-        // El aumento del alquiler no reescribe lo que ya se pagó: es historia (RF-44).
         verify(gastoRepository, never()).save(any(Gasto.class));
     }
 
@@ -147,7 +144,6 @@ class GastoFijoServiceImplTest {
         ajeno.setUsuario(Usuario.builder().id(UUID.randomUUID()).deviceUuid("otro").build());
         when(gastoFijoRepository.findById(ajeno.getId())).thenReturn(Optional.of(ajeno));
 
-        // Un 403 confirmaría que ese id existe.
         assertThatThrownBy(() -> service.eliminar(ajeno.getId()))
                 .isInstanceOf(GastoFijoNoEncontradoException.class);
     }
@@ -164,7 +160,6 @@ class GastoFijoServiceImplTest {
                 .isInstanceOf(CategoriaNoEncontradaException.class);
     }
 
-    // --- El resumen del período ---------------------------------------------
 
     @Test
     @DisplayName("El estimado usa el monto real donde ya se pagó, y el de la plantilla donde no")
@@ -173,14 +168,11 @@ class GastoFijoServiceImplTest {
         GastoFijo pendiente = fijo(new BigDecimal("30000.00"), 20, true);
         when(gastoFijoRepository.findDelUsuario(usuario.getId()))
                 .thenReturn(List.of(pagado, pendiente));
-        // Se pagó más caro que lo que decía la plantilla: 52.300 en vez de 45.000.
         when(gastoRepository.findFijosMaterializados(eq(usuario.getId()), any(), any()))
                 .thenReturn(List.of(materializado(pagado, new BigDecimal("52300.00"))));
 
         ResumenFijosResponse resumen = service.resumenDelPeriodo(mesActual);
 
-        // 52.300 reales + 30.000 estimados. Sumar la plantilla del pagado haría
-        // que el "te queda" de la pantalla mienta por 7.300.
         assertThat(resumen.totalEstimado()).isEqualByComparingTo("82300.00");
         assertThat(resumen.totalRegistrado()).isEqualByComparingTo("52300.00");
         assertThat(resumen.items()).hasSize(2);
@@ -199,12 +191,10 @@ class GastoFijoServiceImplTest {
 
         ResumenFijosResponse resumen = service.resumenDelPeriodo(mesActual);
 
-        // Si lo pagaste y después lo pausaste, la plata salió igual.
         assertThat(resumen.totalEstimado()).isEqualByComparingTo("0");
         assertThat(resumen.totalRegistrado()).isEqualByComparingTo("17000.00");
     }
 
-    // --- Tildar --------------------------------------------------------------
 
     @Test
     @DisplayName("Tildar genera un gasto con origen FIJO y el monto que se pagó, no el de la plantilla")
@@ -239,9 +229,6 @@ class GastoFijoServiceImplTest {
     @DisplayName("Si el día de vencimiento todavía no llegó, la fecha del gasto es hoy y no una futura")
     void fechaNoPuedeSerFutura() {
         LocalDate hoy = LocalDate.now(ZoneId.of(props.getPeriodo().getZonaHoraria()));
-        // Un vencimiento posterior a hoy dentro del mes en curso. Si hoy ya es
-        // 28 o más, no existe ese caso y el día 28 cae en el pasado: el assert
-        // de "no es futura" sigue siendo el que importa.
         GastoFijo fijo = fijo(new BigDecimal("9000.00"), 28, true);
         when(gastoFijoRepository.findById(fijo.getId())).thenReturn(Optional.of(fijo));
 
@@ -289,8 +276,6 @@ class GastoFijoServiceImplTest {
         GastoResponse gasto = service.registrarDelPeriodo(
                 fijo.getId(), new RegistroFijoRequest(mesActual, new BigDecimal("45000.00"), clave));
 
-        // Un reintento de red no tiene por qué chocar contra el 409 que él mismo
-        // provocó: la idempotencia se evalúa antes que el "ya está registrado".
         assertThat(gasto.id()).isEqualTo(yaGuardado.getId());
         verify(gastoRepository, never()).save(any(Gasto.class));
     }
@@ -318,7 +303,6 @@ class GastoFijoServiceImplTest {
                 .isInstanceOf(PeriodoInvalidoException.class);
     }
 
-    // --- Corregir el monto del mes -------------------------------------------
 
     @Test
     @DisplayName("Corregir el monto del mes cambia el gasto y deja la plantilla como estaba")
@@ -333,7 +317,6 @@ class GastoFijoServiceImplTest {
                 service.editarMontoDelPeriodo(fijo.getId(), mesActual, new BigDecimal("52300.00"));
 
         assertThat(corregido.monto()).isEqualByComparingTo("52300.00");
-        // La plantilla sigue diciendo lo que se espera pagar todos los meses.
         assertThat(fijo.getMonto()).isEqualByComparingTo("45000.00");
         verify(gastoFijoRepository, never()).save(any(GastoFijo.class));
     }
@@ -351,7 +334,6 @@ class GastoFijoServiceImplTest {
                 .isInstanceOf(RegistroDeFijoNoEncontradoException.class);
     }
 
-    // --- Helpers -------------------------------------------------------------
 
     private GastoFijoRequest request(Boolean activo) {
         return new GastoFijoRequest(
@@ -371,7 +353,6 @@ class GastoFijoServiceImplTest {
                 .build();
     }
 
-    /** El `gasto` que deja tildar un fijo. */
     private Gasto materializado(GastoFijo fijo, BigDecimal monto) {
         return Gasto.builder()
                 .id(UUID.randomUUID())

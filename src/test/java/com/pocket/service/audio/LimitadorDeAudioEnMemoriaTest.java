@@ -61,8 +61,6 @@ class LimitadorDeAudioEnMemoriaTest {
         assertThatThrownBy(() -> limitador.registrarUso(usuario))
                 .isInstanceOf(LimiteDeAudioAlcanzadoException.class);
 
-        // El segundo visitante arranca con su cupo intacto: si no, el primero
-        // que entra a la demo dejaría sin audio a todos los demás.
         assertThatCode(() -> limitador.registrarUso(otro)).doesNotThrowAnyException();
     }
 
@@ -84,7 +82,6 @@ class LimitadorDeAudioEnMemoriaTest {
         props.getIa().setLimiteDiarioPorUsuario(3);
         props.getIa().setLimiteDiarioGlobal(2);
 
-        // Así se esquivaba el tope por usuario: un dispositivo nuevo por audio.
         limitador.registrarUso(usuarioNuevo());
         limitador.registrarUso(usuarioNuevo());
 
@@ -114,7 +111,6 @@ class LimitadorDeAudioEnMemoriaTest {
         assertThatThrownBy(() -> limitador.registrarUso(usuario))
                 .isInstanceOf(LimiteDeAudioAlcanzadoException.class);
 
-        // Con más lugar en el global, el usuario conserva sus dos audios.
         props.getIa().setLimiteDiarioGlobal(10);
         limitador.registrarUso(usuario);
         limitador.registrarUso(usuario);

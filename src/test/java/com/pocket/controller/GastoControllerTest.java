@@ -36,7 +36,6 @@ class GastoControllerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // @Transactional revierte cada test, así que solo hace falta sembrar lo propio.
         categoriaId = categoriaRepository.save(Categoria.builder()
                 .nombre("Supermercado").icono("cart").color("#000000").orden(1).build()).getId();
         token = obtenerToken("device-" + UUID.randomUUID());
@@ -73,8 +72,6 @@ class GastoControllerTest {
                         .content(cuerpoGasto(UUID.randomUUID())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fechaImputacion").value("2026-01-01"))
-                // Un gasto suelto no tiene compra detrás: es lo que reemplazó
-                // al viejo flag `esCuota`.
                 .andExpect(jsonPath("$.compraFinanciadaId").doesNotExist());
 
         assertThat(gastoRepository.count()).isEqualTo(1);

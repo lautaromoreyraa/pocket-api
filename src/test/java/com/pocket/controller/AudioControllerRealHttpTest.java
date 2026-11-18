@@ -30,17 +30,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * MockMvc no pasa por el servlet container real: no ejercita Tomcat ni el
- * dispatch interno a /error que causó el 401 fantasma con audios grandes
- * (ver SecurityConfig y JwtAuthenticationFilter). Estos tests usan HTTP
- * real contra un puerto real para poder detectar ese tipo de problema.
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class AudioControllerRealHttpTest {
 
-    private static final int TAMANIO_AUDIO_REALISTA = 100_000; // ~100 KB
+    private static final int TAMANIO_AUDIO_REALISTA = 100_000;
 
     @LocalServerPort
     private int port;
@@ -48,7 +42,6 @@ class AudioControllerRealHttpTest {
     @Autowired
     private CategoriaRepository categoriaRepository;
 
-    // Reemplaza el RestClient real de la app: nunca le pegamos a Gemini de verdad.
     @MockitoBean
     @Qualifier("iaRestClient")
     private RestClient iaRestClient;
@@ -62,9 +55,6 @@ class AudioControllerRealHttpTest {
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() throws Exception {
-        // Sin @Transactional a propósito: el request real corre en el hilo
-        // del connector de Tomcat, no en el hilo del test, así que no ve los
-        // datos de una transacción de test todavía sin commitear.
         categoriaRepository.deleteAll();
         categoriaRepository.save(Categoria.builder()
                 .nombre(Categoria.OTROS).icono("other").color("#222222").orden(1).build());
@@ -106,7 +96,6 @@ class AudioControllerRealHttpTest {
                 .thenThrow(new RestClientException("La API de Gemini no respondió"));
     }
 
-    /** Cualquier excepción sin handler propio en GlobalExceptionHandler. */
     private void geminiFallaConExcepcionSinHandlerPropio() {
         when(responseSpec.body(GeminiResponse.class))
                 .thenThrow(new IllegalStateException("simulando un fallo interno sin manejo específico"));
@@ -168,12 +157,6 @@ class AudioControllerRealHttpTest {
 
         HttpResponse<String> resp = postAudio(TAMANIO_AUDIO_REALISTA);
 
-        // Antes del fix (SecurityConfig sin /error en permitAll), esto daba
-        // 401 con Content-Length: 0: Spring Security bloqueaba el forward
-        // interno a /error porque JwtAuthenticationFilter, como todo
-        // OncePerRequestFilter, no corre en dispatches de tipo ERROR por
-        // default, así que el SecurityContext llegaba vacío a ese forward y
-        // AuthorizationFilter lo rechazaba como no autenticado.
         assertThat(resp.statusCode()).isEqualTo(500);
         assertThat(resp.body()).isNotBlank();
         assertThat(resp.body()).doesNotContain("No autenticado");

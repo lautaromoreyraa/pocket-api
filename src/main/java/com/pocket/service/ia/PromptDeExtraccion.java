@@ -5,28 +5,10 @@ import com.pocket.domain.Categoria;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Prompts de extracción de gastos (RF-05, RF-34), separados del service a
- * propósito: es lo que más se ajusta probando con audios reales, y no hace
- * falta abrir el service para tocarlo.
- *
- * Hay dos variantes porque hay dos formas de llegar al mismo JSON:
- *
- * <ul>
- *   <li>{@link #desdeAudio} — un modelo multimodal escucha el audio y devuelve
- *       los gastos <b>más</b> lo que dice haber escuchado;</li>
- *   <li>{@link #desdeTranscripcion} — el audio ya lo transcribió un modelo de
- *       reconocimiento de voz y acá solo se extraen los gastos de ese texto.</li>
- * </ul>
- *
- * La segunda es más segura contra gastos fabricados: el modelo que extrae no
- * escucha nada, así que no puede inventar un monto que no esté escrito.
- */
 public final class PromptDeExtraccion {
 
     private PromptDeExtraccion() {}
 
-    /** Para un modelo que recibe el audio y tiene que transcribirlo él mismo. */
     public static String desdeAudio(List<Categoria> categorias) {
         String listaCategorias = categorias.stream()
                 .map(Categoria::getNombre)
@@ -85,14 +67,6 @@ public final class PromptDeExtraccion {
                 """.formatted(listaCategorias);
     }
 
-    /**
-     * Para un modelo de texto que recibe una transcripción ya hecha.
-     *
-     * La transcripción se le devuelve al cliente tal cual la entregó el modelo
-     * de voz, sin que este segundo modelo pueda tocarla: es la evidencia contra
-     * la que después se verifica cada monto, y no tendría sentido dejar que la
-     * reescriba justo el que podría estar inventando.
-     */
     public static String desdeTranscripcion(List<Categoria> categorias, String transcripcion) {
         String listaCategorias = categorias.stream()
                 .map(Categoria::getNombre)
