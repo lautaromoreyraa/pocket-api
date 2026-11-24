@@ -1,0 +1,14 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Valores de prueba y de ejemplo, que dicen lo que son, sólo en tests y archivos de ejemplo"
+condition = "AND"
+paths = ['''(^|/)src/test/''', '''\.example$''']
+stopwords = ["test", "prueba", "example", "ejemplo", "cambiala", "reemplazar"]
+
+[[allowlists]]
+description = "Token del beacon de analíticas, público por diseño"
+condition = "AND"
+targetRules = ["generic-api-key"]
+paths = ['''^src/(lib|utils)/analiticas\.ts$''']
