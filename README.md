@@ -27,7 +27,7 @@ The audio is discarded as soon as it is processed: it is never stored.
 
 | Layer | Choice |
 |---|---|
-| Language / framework | Java 21, Spring Boot 3.5 (Web, Data JPA, Security, Validation, Actuator) |
+| Language / framework | Java 21, Spring Boot 4.1 (Web, Data JPA, Security, Validation, Actuator) |
 | Database | MySQL 9, schema owned by Flyway |
 | AI | Google Gemini (multimodal) or Groq (Whisper + a text model), selectable by configuration |
 | Auth | Device-based identity with stateless JWT |
